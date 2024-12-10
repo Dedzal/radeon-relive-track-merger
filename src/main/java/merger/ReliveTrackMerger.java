@@ -5,11 +5,8 @@ import com.formdev.flatlaf.FlatDarculaLaf;
 import javax.swing.*;
 import java.awt.*;
 import java.io.File;
-import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintStream;
-import java.nio.file.Files;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -18,12 +15,18 @@ import java.util.concurrent.CountDownLatch;
 public class ReliveTrackMerger extends JFrame {
 
     private static final String APP_TITLE = "Relive Track Merger";
+    private static final String SELECT_FOLDER_BUTTON_LABEL = "Select Folder";
+    private static final String OUTPUT_FOLDER_TEXT = "Output folder:";
+    private static final String PROCESS_BUTTON_LABEL = "Process";
+
+    private static final int WINDOW_WIDTH = 600;
+    private static final int WINDOW_HEIGHT = 400;
 
     private JPanel contentPane;
     private JButton selectFolderButton;
     private JButton processButton;
     private JLabel outputFolderLabel;
-    private JTextField seletedFolderTextField;
+    private JTextField selectedFolderTextField;
     private JTextField outputPathField;
     private JTextArea logTextArea;
     private JList<String> videoList;
@@ -41,46 +44,27 @@ public class ReliveTrackMerger extends JFrame {
     public ReliveTrackMerger() {
         setTitle(APP_TITLE);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setPreferredSize(new Dimension(600, 400));
+        setPreferredSize(new Dimension(WINDOW_WIDTH, WINDOW_HEIGHT));
 
         contentPane = new JPanel(new BorderLayout());
         setContentPane(contentPane);
 
-        selectFolderButton = new JButton("Select Folder");
-        selectFolderButton.addActionListener(e -> selectVideoFolder());
+        JPanel inputPanel = initializeInputFolderPanel();
+        JPanel outputPanel = initializeOutputFolderPanel();
 
-        seletedFolderTextField = new JTextField();
-        seletedFolderTextField.setEditable(false);
-
-        JPanel topPanel = new JPanel(new BorderLayout());
-        topPanel.add(selectFolderButton, BorderLayout.WEST);
-        topPanel.add(seletedFolderTextField, BorderLayout.CENTER);
-
-        // Create panel for center area
         JPanel centerPanel = new JPanel(new BorderLayout());
-
-        // New panel for output folder information
-        JPanel outputFolderPanel = new JPanel(new BorderLayout());
-        outputFolderLabel = new JLabel("Output folder:");
-        outputFolderLabel.setBorder(BorderFactory.createEmptyBorder(0, 13, 0, 13));
-        outputPathField = new JTextField();
-        outputPathField.setEditable(false);
-        outputFolderPanel.add(outputFolderLabel, BorderLayout.WEST);
-        outputFolderPanel.add(outputPathField, BorderLayout.CENTER);
+        centerPanel.add(outputPanel, BorderLayout.NORTH);
 
         listModel = new DefaultListModel<>();
         videoList = new JList<>(listModel);
+        JScrollPane videoListScrollPane = new JScrollPane(videoList);
+        centerPanel.add(videoListScrollPane, BorderLayout.CENTER);
 
-        JScrollPane scrollPane = new JScrollPane(videoList);
 
-        // Add both outputFolderPanel and scrollPane in the new center panel
-        centerPanel.add(outputFolderPanel, BorderLayout.NORTH);
-        centerPanel.add(scrollPane, BorderLayout.CENTER);
-
-        contentPane.add(topPanel, BorderLayout.NORTH);
+        contentPane.add(inputPanel, BorderLayout.NORTH);
         contentPane.add(centerPanel, BorderLayout.CENTER);
 
-        processButton = new JButton("Process");
+        processButton = new JButton(PROCESS_BUTTON_LABEL);
         processButton.addActionListener(e -> processSelectedFiles());
         contentPane.add(processButton, BorderLayout.SOUTH);
 
@@ -99,6 +83,34 @@ public class ReliveTrackMerger extends JFrame {
         setLocationRelativeTo(null);
     }
 
+    private JPanel initializeOutputFolderPanel() {
+        JPanel outputFolderPanel = new JPanel(new BorderLayout());
+
+        outputFolderLabel = new JLabel(OUTPUT_FOLDER_TEXT);
+        outputFolderLabel.setBorder(BorderFactory.createEmptyBorder(0, 13, 0, 13));
+        outputFolderPanel.add(outputFolderLabel, BorderLayout.WEST);
+
+        outputPathField = new JTextField();
+        outputPathField.setEditable(false);
+        outputFolderPanel.add(outputPathField, BorderLayout.CENTER);
+
+        return outputFolderPanel;
+    }
+
+    private JPanel initializeInputFolderPanel() {
+        JPanel topPanel = new JPanel(new BorderLayout());
+
+        selectFolderButton = new JButton(SELECT_FOLDER_BUTTON_LABEL);
+        selectFolderButton.addActionListener(_ -> selectVideoFolder());
+        topPanel.add(selectFolderButton, BorderLayout.WEST);
+
+        selectedFolderTextField = new JTextField();
+        selectedFolderTextField.setEditable(false);
+        topPanel.add(selectedFolderTextField, BorderLayout.CENTER);
+
+        return topPanel;
+    }
+
     private static void setLookAndFeel() {
         try {
             UIManager.setLookAndFeel(new FlatDarculaLaf());
@@ -113,7 +125,7 @@ public class ReliveTrackMerger extends JFrame {
         int returnValue = fileChooser.showOpenDialog(this);
         if (returnValue == JFileChooser.APPROVE_OPTION) {
             selectedFolder = fileChooser.getSelectedFile();
-            seletedFolderTextField.setText(selectedFolder.getAbsolutePath());
+            selectedFolderTextField.setText(selectedFolder.getAbsolutePath());
             loadVideoFiles();
 
             outputPathField.setVisible(true);
@@ -179,43 +191,17 @@ public class ReliveTrackMerger extends JFrame {
         System.out.println();
 
         CountDownLatch latch = new CountDownLatch(filesToProcess.size());
+        VideoFileProcessor processor = new VideoFileProcessor(mergedFolder);
 
-        for (File videoFile : filesToProcess) {
-            SwingWorker<Void, String> worker = new SwingWorker<>() {
-                @Override
-                protected Void doInBackground() {
-                    try {
-                        publish("🔁 " + videoFile.getName()); // Initial status
-                        processSingleFile(videoFile, mergedFolder);
-                    } catch (Exception e) {
-                        publish("❌ " + videoFile.getName()); // Error status
-                    }
-                    return null;
-                }
-
-                @Override
-                protected void process(List<String> chunks) {
-                    // Update the status in the JList during the process
-                    for (String chunk : chunks) {
-                        updateStatus(chunk);
-                    }
-                }
-
-                @Override
-                protected void done() {
-                    try {
-                        get(); // Ensures that exceptions are thrown if any occur
-                        publish("✅ " + videoFile.getName()); // Complete status
-                    } catch (Exception e) {
-                        publish("❌ " + videoFile.getName()); // Error status
-                    } finally {
-                        latch.countDown();
-                    }
-                }
-            };
+        filesToProcess.forEach(file -> {
+            FileProcessingWorker worker = new FileProcessingWorker(file, processor, this::updateStatus, latch);
             worker.execute();
-        }
+        });
 
+        startFinishingLogThread(latch, startTime);
+    }
+
+    private static void startFinishingLogThread(CountDownLatch latch, long startTime) {
         new Thread(() -> {
             try {
                 latch.await(); // Wait until all workers finish
@@ -228,35 +214,6 @@ public class ReliveTrackMerger extends JFrame {
                 System.err.println("Processing was interrupted!");
             }
         }).start();
-
-    }
-
-
-    private void processSingleFile(File videoFile, File mergedFolder) throws IOException, InterruptedException {
-        var videoName = videoFile.getName();
-        var videoNameNoExtension = videoName.substring(0, videoName.lastIndexOf('.'));
-        var videoDirectory = videoFile.getParentFile();
-        var microphoneTrack = new File(videoDirectory, videoNameNoExtension + ".m4a");
-        var outputFile = new File(mergedFolder, videoNameNoExtension + "_merged.mp4");
-
-        System.out.println("Processing file: " + videoName);
-
-        if (microphoneTrack.exists()) {
-            Process process = new ProcessBuilder(
-                    "ffmpeg",
-                    "-i", videoFile.getAbsolutePath(),
-                    "-i", microphoneTrack.getAbsolutePath(),
-                    "-nostdin", "-y", "-map", "0", "-map", "1", "-c", "copy",
-                    outputFile.getAbsolutePath()
-            )
-                    .inheritIO()
-                    .start();
-            process.waitFor();
-            System.out.println("File: " + videoFile.getName() + " processed");
-        } else {
-            System.out.println("File: " + videoFile.getName() + " does not contain a microphone track, copying it to the output folder");
-            Files.copy(videoFile.toPath(), outputFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
-        }
     }
 
 
