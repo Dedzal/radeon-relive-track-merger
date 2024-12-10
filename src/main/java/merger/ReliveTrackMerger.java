@@ -42,73 +42,125 @@ public class ReliveTrackMerger extends JFrame {
 
 
     public ReliveTrackMerger() {
-        setTitle(APP_TITLE);
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setPreferredSize(new Dimension(WINDOW_WIDTH, WINDOW_HEIGHT));
+        initializeFrameSettings();
+        initializeContentPaneWithGridBag();
 
-        contentPane = new JPanel(new BorderLayout());
-        setContentPane(contentPane);
+        initializeTopPanelWithGridBag();
+        initializeCenterPanelWithGridBag();
 
-        JPanel inputPanel = initializeInputFolderPanel();
-        JPanel outputPanel = initializeOutputFolderPanel();
-
-        JPanel centerPanel = new JPanel(new BorderLayout());
-        centerPanel.add(outputPanel, BorderLayout.NORTH);
-
-        listModel = new DefaultListModel<>();
-        videoList = new JList<>(listModel);
-        JScrollPane videoListScrollPane = new JScrollPane(videoList);
-        centerPanel.add(videoListScrollPane, BorderLayout.CENTER);
-
-
-        contentPane.add(inputPanel, BorderLayout.NORTH);
-        contentPane.add(centerPanel, BorderLayout.CENTER);
-
-        processButton = new JButton(PROCESS_BUTTON_LABEL);
-        processButton.addActionListener(e -> processSelectedFiles());
-        contentPane.add(processButton, BorderLayout.SOUTH);
-
-
-        JPanel logPanel = new JPanel(new BorderLayout());
-        logTextArea = new JTextArea();
-        logTextArea.setEditable(false);
-        logPanel.add(logTextArea, BorderLayout.CENTER);
-        JScrollPane scrollPaneForLogs = new JScrollPane(logTextArea);
-        scrollPaneForLogs.setPreferredSize(new Dimension(0, 100));
-        centerPanel.add(scrollPaneForLogs, BorderLayout.SOUTH);
-
+        initializeProcessButton();
         redirectSystemOutToTextArea();
-
         pack();
         setLocationRelativeTo(null);
     }
 
-    private JPanel initializeOutputFolderPanel() {
-        JPanel outputFolderPanel = new JPanel(new BorderLayout());
+    private void initializeFrameSettings() {
+        setTitle(APP_TITLE);
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setPreferredSize(new Dimension(WINDOW_WIDTH, WINDOW_HEIGHT));
+    }
 
+    private void initializeContentPaneWithGridBag() {
+        contentPane = new JPanel(new GridBagLayout());
+        setContentPane(contentPane);
+    }
+
+    private void initializeTopPanelWithGridBag() {
+        GridBagConstraints constraints = new GridBagConstraints();
+
+        // Add the "Select Folder" button
+        selectFolderButton = createSelectFolderButton();
+        constraints.gridx = 0;
+        constraints.gridy = 0;
+        constraints.fill = GridBagConstraints.HORIZONTAL;
+        contentPane.add(selectFolderButton, constraints);
+
+        // Add the non-editable text field for the selected folder
+        selectedFolderTextField = createNonEditableTextField();
+        constraints.gridx = 1;
+        constraints.gridy = 0;
+        constraints.weightx = 1.0; // Allow horizontal growth
+        contentPane.add(selectedFolderTextField, constraints);
+    }
+
+    private void initializeCenterPanelWithGridBag() {
+        GridBagConstraints constraints = new GridBagConstraints();
+
+        // Add output folder panel
+        JPanel outputFolderPanel = createOutputFolderPanel();
+        constraints.gridx = 0;
+        constraints.gridy = 1;
+        constraints.gridwidth = 2; // Span across two columns
+        constraints.fill = GridBagConstraints.HORIZONTAL;
+        contentPane.add(outputFolderPanel, constraints);
+
+        // Add video list scroll pane
+        JScrollPane videoListScrollPane = createVideoListScrollPane();
+        constraints.gridx = 0;
+        constraints.gridy = 2;
+        constraints.gridwidth = 2;
+        constraints.fill = GridBagConstraints.BOTH;
+        constraints.weighty = 1.0; // Allow vertical growth
+        contentPane.add(videoListScrollPane, constraints);
+
+        // Add log scroll pane
+        JScrollPane logScrollPane = createLogScrollPane();
+        constraints.gridx = 0;
+        constraints.gridy = 3;
+        constraints.gridwidth = 2;
+        constraints.fill = GridBagConstraints.BOTH;
+        contentPane.add(logScrollPane, constraints);
+    }
+
+    private void initializeProcessButton() {
+        GridBagConstraints constraints = new GridBagConstraints();
+        processButton = new JButton(PROCESS_BUTTON_LABEL);
+        processButton.addActionListener(_ -> processSelectedFiles());
+
+        constraints.gridx = 0;
+        constraints.gridy = 4;
+        constraints.gridwidth = 2; // Span the button across the entire width
+        constraints.insets = new Insets(5, 5, 5, 5);
+        constraints.fill = GridBagConstraints.HORIZONTAL;
+        contentPane.add(processButton, constraints);
+    }
+
+    // Helper methods for creating reusable components
+    private JButton createSelectFolderButton() {
+        JButton button = new JButton(SELECT_FOLDER_BUTTON_LABEL);
+        button.addActionListener(_ -> selectVideoFolder());
+        return button;
+    }
+
+    private JTextField createNonEditableTextField() {
+        JTextField textField = new JTextField();
+        textField.setEditable(false);
+        return textField;
+    }
+
+    private JPanel createOutputFolderPanel() {
+        JPanel outputFolderPanel = new JPanel(new BorderLayout());
         outputFolderLabel = new JLabel(OUTPUT_FOLDER_TEXT);
         outputFolderLabel.setBorder(BorderFactory.createEmptyBorder(0, 13, 0, 13));
+        outputPathField = createNonEditableTextField();
+
         outputFolderPanel.add(outputFolderLabel, BorderLayout.WEST);
-
-        outputPathField = new JTextField();
-        outputPathField.setEditable(false);
         outputFolderPanel.add(outputPathField, BorderLayout.CENTER);
-
         return outputFolderPanel;
     }
 
-    private JPanel initializeInputFolderPanel() {
-        JPanel topPanel = new JPanel(new BorderLayout());
+    private JScrollPane createVideoListScrollPane() {
+        listModel = new DefaultListModel<>();
+        videoList = new JList<>(listModel);
+        return new JScrollPane(videoList);
+    }
 
-        selectFolderButton = new JButton(SELECT_FOLDER_BUTTON_LABEL);
-        selectFolderButton.addActionListener(_ -> selectVideoFolder());
-        topPanel.add(selectFolderButton, BorderLayout.WEST);
-
-        selectedFolderTextField = new JTextField();
-        selectedFolderTextField.setEditable(false);
-        topPanel.add(selectedFolderTextField, BorderLayout.CENTER);
-
-        return topPanel;
+    private JScrollPane createLogScrollPane() {
+        logTextArea = new JTextArea();
+        logTextArea.setEditable(false);
+        JScrollPane logScrollPane = new JScrollPane(logTextArea);
+        logScrollPane.setPreferredSize(new Dimension(0, 100));
+        return logScrollPane;
     }
 
     private static void setLookAndFeel() {
