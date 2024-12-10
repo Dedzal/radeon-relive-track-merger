@@ -6,6 +6,8 @@ import javax.swing.*;
 import java.awt.*;
 import java.io.File;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.io.PrintStream;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
@@ -22,6 +24,7 @@ public class ReliveTrackMerger extends JFrame {
     private JLabel outputFolderLabel;
     private JTextField seletedFolderTextField;
     private JTextField outputPathField;
+    private JTextArea logTextArea;
     private JList<String> videoList;
     private DefaultListModel<String> listModel;
 
@@ -79,6 +82,17 @@ public class ReliveTrackMerger extends JFrame {
         processButton = new JButton("Process");
         processButton.addActionListener(e -> processSelectedFiles());
         contentPane.add(processButton, BorderLayout.SOUTH);
+
+
+        JPanel logPanel = new JPanel(new BorderLayout());
+        logTextArea = new JTextArea();
+        logTextArea.setEditable(false);
+        logPanel.add(logTextArea, BorderLayout.CENTER);
+        JScrollPane scrollPaneForLogs = new JScrollPane(logTextArea);
+        scrollPaneForLogs.setPreferredSize(new Dimension(0, 100));
+        centerPanel.add(scrollPaneForLogs, BorderLayout.SOUTH);
+
+        redirectSystemOutToTextArea();
 
         pack();
         setLocationRelativeTo(null);
@@ -145,6 +159,8 @@ public class ReliveTrackMerger extends JFrame {
     }
 
     private void processSelectedFiles() {
+        logTextArea.setText("");
+
         String outputFolderName = "merged";
         File mergedFolder = new File(selectedFolder, outputFolderName);
         if (mergedFolder.exists()) {
@@ -152,7 +168,12 @@ public class ReliveTrackMerger extends JFrame {
             mergedFolder.delete();
         }
         mergedFolder.mkdirs();
-        System.out.println("Processing files. Output folder is: " + mergedFolder.getAbsolutePath());
+        System.out.println("Processing files");
+        System.out.println("Output folder is: " + mergedFolder.getAbsolutePath());
+
+        System.out.println();
+        System.out.println("-----------------------------------------------------------------------------");
+        System.out.println();
 
         for (File videoFile : filesToProcess) {
             SwingWorker<Void, String> worker = new SwingWorker<>() {
@@ -229,5 +250,31 @@ public class ReliveTrackMerger extends JFrame {
                 }
             }
         });
+    }
+
+    private void redirectSystemOutToTextArea() {
+        // Create an OutputStream that appends text to the JTextArea
+        OutputStream textAreaStream = new OutputStream() {
+            @Override
+            public void write(int b) {
+                // Writes a single character
+                appendLog(String.valueOf((char) b));
+            }
+
+            @Override
+            public void write(byte[] b, int off, int len) {
+                // Writes an array of characters as a String
+                appendLog(new String(b, off, len));
+            }
+
+            private void appendLog(String text) {
+                SwingUtilities.invokeLater(() -> logTextArea.append(text));
+            }
+        };
+
+        // Redirect System.out to the JTextArea's OutputStream
+        PrintStream printStream = new PrintStream(textAreaStream, true);
+        System.setOut(printStream);
+        System.setErr(printStream); // Redirect error stream as well
     }
 }
