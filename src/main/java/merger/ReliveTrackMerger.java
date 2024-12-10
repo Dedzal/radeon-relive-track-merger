@@ -1,4 +1,4 @@
-package adder;
+package merger;
 
 import com.formdev.flatlaf.FlatDarculaLaf;
 
@@ -13,6 +13,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 
 public class ReliveTrackMerger extends JFrame {
 
@@ -155,10 +156,12 @@ public class ReliveTrackMerger extends JFrame {
 
     private boolean isUnprocessedFile(File file) {
         String fileName = file.getName().toLowerCase();
-        return fileName.endsWith(".mp4") && !fileName.contains("_merged.mp4");
+        return fileName.endsWith(".mp4") && fileName.contains("_replay_") && !fileName.contains("_merged.mp4");
     }
 
     private void processSelectedFiles() {
+        long startTime = System.currentTimeMillis();
+
         logTextArea.setText("");
 
         String outputFolderName = "merged";
@@ -168,12 +171,14 @@ public class ReliveTrackMerger extends JFrame {
             mergedFolder.delete();
         }
         mergedFolder.mkdirs();
-        System.out.println("Processing files");
+        System.out.println("Processing " + filesToProcess.size() + " file(s)");
         System.out.println("Output folder is: " + mergedFolder.getAbsolutePath());
 
         System.out.println();
         System.out.println("-----------------------------------------------------------------------------");
         System.out.println();
+
+        CountDownLatch latch = new CountDownLatch(filesToProcess.size());
 
         for (File videoFile : filesToProcess) {
             SwingWorker<Void, String> worker = new SwingWorker<>() {
@@ -203,11 +208,27 @@ public class ReliveTrackMerger extends JFrame {
                         publish("✅ " + videoFile.getName()); // Complete status
                     } catch (Exception e) {
                         publish("❌ " + videoFile.getName()); // Error status
+                    } finally {
+                        latch.countDown();
                     }
                 }
             };
             worker.execute();
         }
+
+        new Thread(() -> {
+            try {
+                latch.await(); // Wait until all workers finish
+                SwingUtilities.invokeLater(() -> {
+                    System.out.println();
+                    System.out.println("Done!");
+                    System.out.println("Processing took a total of " + (System.currentTimeMillis() - startTime) / 1000.0 + " seconds");
+                });
+            } catch (InterruptedException e) {
+                System.err.println("Processing was interrupted!");
+            }
+        }).start();
+
     }
 
 
