@@ -7,7 +7,7 @@ import java.util.List;
 /**
  * A utility class for recursively fetching unprocessed replays from a root directory.
  */
-public class RecursiveFileFetcher {
+public class RecursiveReplayFetcher {
 
     /**
      * Fetch replays recursively from the given folder
