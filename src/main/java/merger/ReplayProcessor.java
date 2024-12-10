@@ -5,11 +5,11 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 
-public class VideoFileProcessor {
+public class ReplayProcessor {
 
     private final File outputDirectory;
 
-    public VideoFileProcessor(File outputDirectory) {
+    public ReplayProcessor(File outputDirectory) {
         this.outputDirectory = outputDirectory;
     }
 

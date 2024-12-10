@@ -7,7 +7,6 @@ import java.awt.*;
 import java.io.File;
 import java.io.OutputStream;
 import java.io.PrintStream;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -44,10 +43,8 @@ public class ReliveTrackMerger extends JFrame {
     public ReliveTrackMerger() {
         initializeFrameSettings();
         initializeContentPaneWithGridBag();
-
         initializeTopPanelWithGridBag();
         initializeCenterPanelWithGridBag();
-
         initializeProcessButton();
         redirectSystemOutToTextArea();
         pack();
@@ -158,6 +155,7 @@ public class ReliveTrackMerger extends JFrame {
     private JScrollPane createLogScrollPane() {
         logTextArea = new JTextArea();
         logTextArea.setEditable(false);
+        logTextArea.setText("Please start by selecting a folder containing your replays");
         JScrollPane logScrollPane = new JScrollPane(logTextArea);
         logScrollPane.setPreferredSize(new Dimension(0, 100));
         return logScrollPane;
@@ -188,7 +186,7 @@ public class ReliveTrackMerger extends JFrame {
     private void loadVideoFiles() {
         listModel.clear();
         if (selectedFolder != null && selectedFolder.isDirectory()) {
-            List<File> videoFiles = RecursiveFileFetcher.fetchUnprocessedFiles(selectedFolder);
+            List<File> videoFiles = RecursiveReplayFetcher.fetchUnprocessedFiles(selectedFolder);
             filesToProcess = videoFiles.stream().sorted(Comparator.comparing(File::getName)).toList();
 
             for (File videoFile : videoFiles) {
@@ -219,10 +217,10 @@ public class ReliveTrackMerger extends JFrame {
         System.out.println();
 
         CountDownLatch latch = new CountDownLatch(filesToProcess.size());
-        VideoFileProcessor processor = new VideoFileProcessor(mergedFolder);
+        ReplayProcessor processor = new ReplayProcessor(mergedFolder);
 
         filesToProcess.forEach(file -> {
-            FileProcessingWorker worker = new FileProcessingWorker(file, processor, this::updateStatus, latch);
+            ReplayProcessingWorker worker = new ReplayProcessingWorker(file, processor, this::updateStatus, latch);
             worker.execute();
         });
 
