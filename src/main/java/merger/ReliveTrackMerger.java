@@ -185,12 +185,10 @@ public class ReliveTrackMerger extends JFrame {
         }
     }
 
-    private void updateListModel() {
+    private void loadVideoFiles() {
         listModel.clear();
         if (selectedFolder != null && selectedFolder.isDirectory()) {
-            List<File> videoFiles = new ArrayList<>();
-            searchVideoFilesRecursively(selectedFolder, videoFiles);
-
+            List<File> videoFiles = RecursiveFileFetcher.fetchUnprocessedFiles(selectedFolder);
             filesToProcess = videoFiles.stream().sorted(Comparator.comparing(File::getName)).toList();
 
             for (File videoFile : videoFiles) {
@@ -199,28 +197,6 @@ public class ReliveTrackMerger extends JFrame {
 
             videoList.repaint();
         }
-    }
-
-    private void loadVideoFiles() {
-        updateListModel();
-    }
-
-    private void searchVideoFilesRecursively(File folder, List<File> videoFiles) {
-        File[] files = folder.listFiles();
-        if (files != null) {
-            for (File file : files) {
-                if (isUnprocessedFile(file)) {
-                    videoFiles.add(file);
-                } else if (file.isDirectory()) {
-                    searchVideoFilesRecursively(file, videoFiles);
-                }
-            }
-        }
-    }
-
-    private boolean isUnprocessedFile(File file) {
-        String fileName = file.getName().toLowerCase();
-        return fileName.endsWith(".mp4") && fileName.contains("_replay_") && !fileName.contains("_merged.mp4");
     }
 
     private void processSelectedFiles() {
