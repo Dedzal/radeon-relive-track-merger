@@ -11,17 +11,30 @@ public class FfmpegInstaller {
      * @return true if ffmpeg is installed, false otherwise
      */
     public static boolean isFfmpegInstalled() {
+        return getFfmpegVersion() != null;
+    }
+
+    public static String getFfmpegVersion() {
         try {
-            // Try to execute `ffmpeg -version` to confirm installation
             Process process = new ProcessBuilder("ffmpeg", "-version")
-                    .redirectErrorStream(true) // Combine error and output streams
+                    .redirectErrorStream(true)
                     .start();
 
-            // Wait for the command to complete
-            int exitCode = process.waitFor();
-            return exitCode == 0; // Success indicates ffmpeg is installed
+            // Read the output from the process
+            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+            String firstLine = reader.readLine(); // Read only the first line
+
+            // Close resources
+            reader.close();
+            int exitCode = process.waitFor();// Wait for the process to complete
+            if (exitCode != 0) {
+                return null;
+            }
+
+            return firstLine;
         } catch (Exception e) {
-            return false; // If an exception occurs, ffmpeg is not installed
+            System.out.println("Failed to get ffmpeg version");
+            return null;
         }
     }
 
@@ -36,7 +49,7 @@ public class FfmpegInstaller {
             // Execute the `winget` command in a new Command Prompt (cmd) window
             ProcessBuilder processBuilder = new ProcessBuilder(
                     "cmd", "/c", "start", "cmd", "/k",
-                    "winget install --id Gyan.FFmpeg --silent"
+                    "winget install ffmpeg"
             );
 
             // Start the process, which opens a new cmd window and runs the command
@@ -67,7 +80,7 @@ public class FfmpegInstaller {
      * Checks if ffmpeg is installed, and installs it if it is missing.
      */
     public static void checkOrInstallFfmpeg() {
-        if (isFfmpegInstalled()) {
+        if (!isFfmpegInstalled()) {
             int choice = JOptionPane.showConfirmDialog(
                     null,
                     "FFmpeg is not installed on your system. Would you like to install it now using winget?",
@@ -88,7 +101,7 @@ public class FfmpegInstaller {
             }
             throw new IllegalStateException("FFmpeg is not installed.");
         } else {
-            System.out.println("FFmpeg is already installed and ready to use.");
+            System.out.println("Using " + getFfmpegVersion());
         }
     }
 }
