@@ -43,27 +43,45 @@ public class FfmpegInstaller {
      */
     public static void installFfmpegUsingWinget() {
         try {
-            // Inform the user about the installation
-            System.out.println("Installing ffmpeg using winget in a separate Command Prompt window...");
+            System.out.println("Installing ffmpeg using winget in a Command Prompt with elevated privileges...");
 
-            // Execute the `winget` command in a new Command Prompt (cmd) window
-            ProcessBuilder processBuilder = new ProcessBuilder(
-                    "cmd", "/c", "start", "cmd", "/k",
-                    "winget install ffmpeg"
-            );
+            String command = "powershell -Command \"Start-Process cmd -Verb runAs -Wait -ArgumentList '/c winget install ffmpeg && timeout 5'\"";
 
-            // Start the process, which opens a new cmd window and runs the command
-            processBuilder.start();
+            ProcessBuilder processBuilder = new ProcessBuilder("cmd", "/c", command);
+            Process process = processBuilder.start();
 
-            JOptionPane.showMessageDialog(
-                    null,
-                    "The FFmpeg installation process is running in a new Command Prompt window.\n" +
-                            "Please check the window for progress.",
-                    "Installation Started",
-                    JOptionPane.INFORMATION_MESSAGE
-            );
+            int exitCode = process.waitFor();
 
-        } catch (IOException e) {
+            if (exitCode == 0) {
+                if (isFfmpegInstalled()) {
+                    System.out.println("FFmpeg installed successfully!");
+                    JOptionPane.showMessageDialog(
+                            null,
+                            "FFmpeg has been installed successfully and is ready to use.",
+                            "Installation Complete",
+                            JOptionPane.INFORMATION_MESSAGE
+                    );
+                } else {
+                    System.out.println("FFmpeg installation failed. Please check the Command Prompt window for errors.");
+                    JOptionPane.showMessageDialog(
+                            null,
+                            "FFmpeg installation failed. Please try installing it manually using the following command:\n" +
+                                    "\"winget install ffmpeg\"",
+                            "Installation Failed",
+                            JOptionPane.ERROR_MESSAGE
+                    );
+                }
+            } else {
+                System.out.println("The installation process did not complete successfully.");
+                JOptionPane.showMessageDialog(
+                        null,
+                        "FFmpeg installation encountered an error. Please check the Command Prompt window for details.",
+                        "Installation Error",
+                        JOptionPane.ERROR_MESSAGE
+                );
+            }
+
+        } catch (IOException | InterruptedException e) {
             e.printStackTrace();
             JOptionPane.showMessageDialog(
                     null,
@@ -98,8 +116,8 @@ public class FfmpegInstaller {
                         "FFmpeg Required",
                         JOptionPane.WARNING_MESSAGE
                 );
+                throw new IllegalStateException("FFmpeg is not installed.");
             }
-            throw new IllegalStateException("FFmpeg is not installed.");
         } else {
             System.out.println("Using " + getFfmpegVersion());
         }

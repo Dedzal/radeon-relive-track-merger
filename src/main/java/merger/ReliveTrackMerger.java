@@ -1,7 +1,6 @@
 package merger;
 
 import com.formdev.flatlaf.FlatDarculaLaf;
-import com.formdev.flatlaf.util.StringUtils;
 
 import javax.swing.*;
 import java.awt.*;
@@ -114,7 +113,7 @@ public class ReliveTrackMerger extends JFrame {
     private void initializeProcessButton() {
         GridBagConstraints constraints = new GridBagConstraints();
         processButton = new JButton(PROCESS_BUTTON_LABEL);
-        processButton.addActionListener(_ -> processSelectedFiles());
+        processButton.addActionListener(e -> processSelectedFiles());
         processButton.setEnabled(selectedFolder != null);
 
         constraints.gridx = 0;
@@ -128,7 +127,7 @@ public class ReliveTrackMerger extends JFrame {
     // Helper methods for creating reusable components
     private JButton createSelectFolderButton() {
         JButton button = new JButton(SELECT_FOLDER_BUTTON_LABEL);
-        button.addActionListener(_ -> selectVideoFolder());
+        button.addActionListener(e -> selectVideoFolder());
         return button;
     }
 

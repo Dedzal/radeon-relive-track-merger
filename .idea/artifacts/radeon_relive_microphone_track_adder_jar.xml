@@ -1,0 +1,13 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="radeon-relive-microphone-track-adder:jar">
+    <output-path>$PROJECT_DIR$/out/artifacts/radeon_relive_microphone_track_adder_jar</output-path>
+    <root id="archive" name="radeon-relive-microphone-track-adder.jar">
+      <element id="directory" name="META-INF">
+        <element id="file-copy" path="$PROJECT_DIR$/META-INF/MANIFEST.MF" />
+      </element>
+      <element id="module-output" name="radeon-relive-microphone-track-adder" />
+      <element id="extracted-dir" path="$MAVEN_REPOSITORY$/com/formdev/flatlaf/3.5.3/flatlaf-3.5.3.jar" path-in-jar="/" />
+      <element id="library" level="project" name="Maven: com.formdev:flatlaf:3.5.3" />
+    </root>
+  </artifact>
+</component>
