@@ -227,9 +227,10 @@ public class ReliveTrackMerger extends JFrame {
         File mergedFolder = new File(selectedFolder, outputFolderName);
         if (mergedFolder.exists()) {
             System.out.println("Merged folder exists already, deleting it and creating a new one");
-            mergedFolder.delete();
+            deleteDirectory(mergedFolder);
         }
         mergedFolder.mkdirs();
+
         System.out.println("Processing " + filesToProcess.size() + " file(s)");
         System.out.println("Output folder is: " + mergedFolder.getAbsolutePath());
 
@@ -238,7 +239,7 @@ public class ReliveTrackMerger extends JFrame {
         System.out.println();
 
         CountDownLatch latch = new CountDownLatch(filesToProcess.size());
-        ReplayProcessor processor = new ReplayProcessor(mergedFolder);
+        ReplayProcessor processor = new ReplayProcessor(mergedFolder, selectedFolder);
 
         filesToProcess.forEach(file -> {
             ReplayProcessingWorker worker = new ReplayProcessingWorker(file, processor, this::updateStatus, latch);
@@ -246,6 +247,16 @@ public class ReliveTrackMerger extends JFrame {
         });
 
         startFinishingLogThread(latch, startTime);
+    }
+
+    boolean deleteDirectory(File directoryToBeDeleted) {
+        File[] allContents = directoryToBeDeleted.listFiles();
+        if (allContents != null) {
+            for (File file : allContents) {
+                deleteDirectory(file);
+            }
+        }
+        return directoryToBeDeleted.delete();
     }
 
     private static void startFinishingLogThread(CountDownLatch latch, long startTime) {
