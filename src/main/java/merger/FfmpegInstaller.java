@@ -28,14 +28,14 @@ public class FfmpegInstaller {
             reader.close();
             int exitCode = process.waitFor();// Wait for the process to complete
             if (exitCode != 0) {
-                System.out.println("Failed to get ffmpeg version. Version check returned first line: ");;
-                System.out.println(firstLine);;
+                System.out.println("Failed to get ffmpeg version. Version check returned first line: ");
+                System.out.println(firstLine);
                 return null;
             }
 
             return firstLine;
         } catch (Exception e) {
-            System.out.println("Failed to get ffmpeg version");
+            System.out.println("Failed to get ffmpeg version due to exception: " + e.getMessage());
             return null;
         }
     }
@@ -55,24 +55,13 @@ public class FfmpegInstaller {
             int exitCode = process.waitFor();
 
             if (exitCode == 0) {
-                if (isFfmpegInstalled()) {
-                    System.out.println("FFmpeg installed successfully!");
-                    JOptionPane.showMessageDialog(
-                            null,
-                            "FFmpeg has been installed successfully and is ready to use.",
-                            "Installation Complete",
-                            JOptionPane.INFORMATION_MESSAGE
-                    );
-                } else {
-                    System.out.println("FFmpeg installation failed. Please check the Command Prompt window for errors.");
-                    JOptionPane.showMessageDialog(
-                            null,
-                            "FFmpeg installation failed. Please try installing it manually using the following command:\n" +
-                                    "\"winget install ffmpeg\"",
-                            "Installation Failed",
-                            JOptionPane.ERROR_MESSAGE
-                    );
-                }
+                System.out.println("FFmpeg installed successfully!");
+                JOptionPane.showMessageDialog(
+                        null,
+                        "FFmpeg has been installed successfully and is ready to use.",
+                        "Installation Complete",
+                        JOptionPane.INFORMATION_MESSAGE
+                );
             } else {
                 System.out.println("The installation process did not complete successfully.");
                 JOptionPane.showMessageDialog(
