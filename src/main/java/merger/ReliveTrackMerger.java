@@ -198,6 +198,12 @@ public class ReliveTrackMerger extends JFrame {
     }
 
     private void processSelectedFiles() {
+        try {
+            FfmpegInstaller.checkOrInstallFfmpeg();
+        } catch (IllegalStateException e) {
+            return;
+        }
+
         long startTime = System.currentTimeMillis();
 
         logTextArea.setText("");
