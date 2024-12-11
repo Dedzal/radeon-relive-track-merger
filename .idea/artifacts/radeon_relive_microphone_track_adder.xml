@@ -1,0 +1,8 @@
+<component name="ArtifactManager">
+  <artifact type="jlink" build-on-make="true" name="radeon-relive-microphone-track-adder">
+    <output-path>$PROJECT_DIR$/out/artifacts/radeon_relive_microphone_track_adder</output-path>
+    <root id="root">
+      <element id="artifact" artifact-name="radeon-relive-microphone-track-adder:jar" />
+    </root>
+  </artifact>
+</component>
