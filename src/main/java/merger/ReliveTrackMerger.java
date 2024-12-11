@@ -1,6 +1,7 @@
 package merger;
 
 import com.formdev.flatlaf.FlatDarculaLaf;
+import com.formdev.flatlaf.util.StringUtils;
 
 import javax.swing.*;
 import java.awt.*;
@@ -114,6 +115,7 @@ public class ReliveTrackMerger extends JFrame {
         GridBagConstraints constraints = new GridBagConstraints();
         processButton = new JButton(PROCESS_BUTTON_LABEL);
         processButton.addActionListener(_ -> processSelectedFiles());
+        processButton.setEnabled(selectedFolder != null);
 
         constraints.gridx = 0;
         constraints.gridy = 4;
@@ -180,6 +182,12 @@ public class ReliveTrackMerger extends JFrame {
 
             outputPathField.setVisible(true);
             outputPathField.setText(selectedFolder.getAbsolutePath() + File.separator + "merged");
+
+            processButton.setEnabled(true);
+        } else {
+            selectedFolder = null;
+            selectedFolderTextField.setText("");
+            processButton.setEnabled(false);
         }
     }
 
@@ -198,6 +206,7 @@ public class ReliveTrackMerger extends JFrame {
     }
 
     private void processSelectedFiles() {
+        // check if ffmpeg is installed before processing is initiated just in case
         try {
             FfmpegInstaller.checkOrInstallFfmpeg();
         } catch (IllegalStateException e) {
@@ -206,7 +215,13 @@ public class ReliveTrackMerger extends JFrame {
 
         long startTime = System.currentTimeMillis();
 
+        // clean the log text area before processing
         logTextArea.setText("");
+
+        if (filesToProcess == null || filesToProcess.isEmpty()) {
+            System.out.println("No files to process");
+            return;
+        }
 
         String outputFolderName = "merged";
         File mergedFolder = new File(selectedFolder, outputFolderName);
