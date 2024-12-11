@@ -28,6 +28,8 @@ public class FfmpegInstaller {
             reader.close();
             int exitCode = process.waitFor();// Wait for the process to complete
             if (exitCode != 0) {
+                System.out.println("Failed to get ffmpeg version. Version check returned first line: ");;
+                System.out.println(firstLine);;
                 return null;
             }
 
