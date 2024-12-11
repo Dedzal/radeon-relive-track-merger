@@ -37,6 +37,7 @@ public class ReliveTrackMerger extends JFrame {
     public static void main(String[] args) {
         setLookAndFeel();
         SwingUtilities.invokeLater(() -> new ReliveTrackMerger().setVisible(true));
+        FfmpegInstaller.checkOrInstallFfmpeg();
     }
 
 
@@ -155,7 +156,6 @@ public class ReliveTrackMerger extends JFrame {
     private JScrollPane createLogScrollPane() {
         logTextArea = new JTextArea();
         logTextArea.setEditable(false);
-        logTextArea.setText("Please start by selecting a folder containing your replays");
         JScrollPane logScrollPane = new JScrollPane(logTextArea);
         logScrollPane.setPreferredSize(new Dimension(0, 100));
         return logScrollPane;
