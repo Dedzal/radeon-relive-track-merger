@@ -6,7 +6,7 @@
 ## How It Works
 
 1. **Select Input Folder**: Click the *"Select Folder"* button to choose the directory containing replays and corresponding microphone tracks. You can also select a folder containing game-specific subdirectories of replays for batch processing.
-2. **Automatic File Listing**: The application scans the specified folder and its subdirectories for eligible replay files. Replays are identified as `.mp4` files with `"_replay_"` in their filenames.
+2. **Automatic File Listing**: The application scans the specified folder and its subdirectories for eligible replay files. Replays are identified as `.mp4` files with `"_replay_"` in their filenames. Already processed replays will be skipped (replays that end in `"_merged"`).
 3. **Start Processing**: Press the *"Process"* button to begin merging the microphone tracks into the replay videos. The application provides real-time progress logs.
 4. **View Output**: The merged files are saved in an output directory while maintaining the same folder structure as the input folder.
 
