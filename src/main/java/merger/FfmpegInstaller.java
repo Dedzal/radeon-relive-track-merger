@@ -2,6 +2,9 @@ package merger;
 
 import javax.swing.*;
 import java.io.*;
+import java.net.URL;
+import java.nio.file.Paths;
+import java.security.CodeSource;
 
 public class FfmpegInstaller {
 
@@ -58,7 +61,7 @@ public class FfmpegInstaller {
                 System.out.println("FFmpeg installed successfully!");
                 JOptionPane.showMessageDialog(
                         null,
-                        "FFmpeg has been installed successfully and is ready to use.",
+                        "FFmpeg has been installed successfully.\nIn order for it to take effect, please restart the application.",
                         "Installation Complete",
                         JOptionPane.INFORMATION_MESSAGE
                 );
@@ -83,6 +86,8 @@ public class FfmpegInstaller {
                     JOptionPane.ERROR_MESSAGE
             );
         }
+
+        System.exit(0);
     }
 
     /**
