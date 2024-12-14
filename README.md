@@ -1,7 +1,7 @@
 
 # Relive Track Merger
 
-**Relive Track Merger** is a lightweight desktop application designed to simplify the process of integrating separated microphone audio tracks into Radeon Relive Replays. The merged files can then be directly imported into video editing software like DaVinci Resolve, with the microphone track already embedded.
+**Relive Track Merger** is a lightweight desktop application designed to simplify the process of integrating separated microphone audio tracks into Radeon Relive replays. The merged files can then be directly imported into video editing software like DaVinci Resolve, with the microphone track already embedded.
 
 ## How It Works
 

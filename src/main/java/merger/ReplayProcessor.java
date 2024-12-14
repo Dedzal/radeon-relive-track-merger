@@ -36,7 +36,10 @@ public class ReplayProcessor {
                     "ffmpeg",
                     "-i", videoFile.getAbsolutePath(),
                     "-i", microphoneTrack.getAbsolutePath(),
-                    "-nostdin", "-y", "-map", "0", "-map", "1", "-c", "copy",
+                    "-nostdin", "-y",
+                    "-map", "0",
+                    "-map", "1",
+                    "-c", "copy",
                     outputFile.getAbsolutePath()
             ).inheritIO().start();
             process.waitFor();
