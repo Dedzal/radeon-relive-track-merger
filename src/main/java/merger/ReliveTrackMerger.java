@@ -30,6 +30,7 @@ public class ReliveTrackMerger extends JFrame {
     private JButton selectOutputFolderButton;
     private JTextField selectedInputFolderTextField;
     private JTextField selectedOutputFolderTextField;
+    private JCheckBox cleanOutputFolderCheckBox;
     private JTextArea logTextArea;
     private JList<String> videoList;
     private DefaultListModel<String> listModel;
@@ -48,7 +49,7 @@ public class ReliveTrackMerger extends JFrame {
     public ReliveTrackMerger() {
         initializeFrameSettings();
         initializeContentPaneWithGridBag();
-        initializeTopPanelWithGridBag();
+        initializeInputPanel();
         initializeCenterPanelWithGridBag();
         initializeProcessButton();
         redirectSystemOutToTextArea();
@@ -67,7 +68,7 @@ public class ReliveTrackMerger extends JFrame {
         setContentPane(contentPane);
     }
 
-    private void initializeTopPanelWithGridBag() {
+    private void initializeInputPanel() {
         GridBagConstraints constraints = new GridBagConstraints();
 
         // Add the "Select Folder" button
@@ -151,8 +152,14 @@ public class ReliveTrackMerger extends JFrame {
 
         selectedOutputFolderTextField = createNonEditableTextField();
 
+        cleanOutputFolderCheckBox = new JCheckBox("Clean output folder before processing");
+        cleanOutputFolderCheckBox.setSelected(false); // Default unchecked
+        cleanOutputFolderCheckBox.setToolTipText("Leaving this unchecked will overwrite existing files in the output folder. Check this box to clean the output folder before processing.");
+
         outputFolderPanel.add(selectOutputFolderButton, BorderLayout.WEST);
         outputFolderPanel.add(selectedOutputFolderTextField, BorderLayout.CENTER);
+        outputFolderPanel.add(cleanOutputFolderCheckBox, BorderLayout.SOUTH);
+
         return outputFolderPanel;
     }
 
@@ -188,6 +195,7 @@ public class ReliveTrackMerger extends JFrame {
             loadVideoFiles();
 
             if (selectedOutputFolder == null) {
+                selectedOutputFolder = selectedInputFolder;
                 selectedOutputFolderTextField.setText(selectedInputFolder.getAbsolutePath() + File.separator + OUTPUT_FOLDER_NAME);
             }
 
@@ -243,9 +251,11 @@ public class ReliveTrackMerger extends JFrame {
             return;
         }
 
+        processButton.setEnabled(false);
+
         File outputFolder = new File(selectedOutputFolder, OUTPUT_FOLDER_NAME);
-        if (outputFolder.exists()) {
-            System.out.println("Output folder already exists at selected location. Deleting...");
+        if (cleanOutputFolderCheckBox.isSelected() && outputFolder.exists()) {
+            System.out.println("Cleaning output folder...");
             deleteDirectory(outputFolder);
         }
         outputFolder.mkdirs();
@@ -266,9 +276,10 @@ public class ReliveTrackMerger extends JFrame {
         });
 
         startFinishingLogThread(latch, startTime);
+        processButton.setEnabled(true);
     }
 
-    boolean deleteDirectory(File directoryToBeDeleted) {
+    private boolean deleteDirectory(File directoryToBeDeleted) {
         File[] allContents = directoryToBeDeleted.listFiles();
         if (allContents != null) {
             for (File file : allContents) {
