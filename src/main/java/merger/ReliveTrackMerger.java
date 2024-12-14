@@ -15,23 +15,27 @@ public class ReliveTrackMerger extends JFrame {
 
     private static final String APP_TITLE = "Relive Track Merger";
     private static final String SELECT_FOLDER_BUTTON_LABEL = "Select Folder";
-    private static final String OUTPUT_FOLDER_TEXT = "Output folder:";
+    private static final String OUTPUT_FOLDER_TEXT = "Output Folder";
     private static final String PROCESS_BUTTON_LABEL = "Process";
+
+    public static final String OUTPUT_FOLDER_NAME = "replays_merged";
 
     private static final int WINDOW_WIDTH = 600;
     private static final int WINDOW_HEIGHT = 400;
+    private static final Dimension DEFAULT_SELECT_BUTTON_SIZE = new Dimension(115, 25);
 
     private JPanel contentPane;
-    private JButton selectFolderButton;
     private JButton processButton;
-    private JLabel outputFolderLabel;
-    private JTextField selectedFolderTextField;
-    private JTextField outputPathField;
+    private JButton selectInputFolderButton;
+    private JButton selectOutputFolderButton;
+    private JTextField selectedInputFolderTextField;
+    private JTextField selectedOutputFolderTextField;
     private JTextArea logTextArea;
     private JList<String> videoList;
     private DefaultListModel<String> listModel;
 
-    private File selectedFolder;
+    private File selectedInputFolder;
+    private File selectedOutputFolder;
     private List<File> filesToProcess;
 
     public static void main(String[] args) {
@@ -67,18 +71,18 @@ public class ReliveTrackMerger extends JFrame {
         GridBagConstraints constraints = new GridBagConstraints();
 
         // Add the "Select Folder" button
-        selectFolderButton = createSelectFolderButton();
+        selectInputFolderButton = createSelectFolderButton();
         constraints.gridx = 0;
         constraints.gridy = 0;
         constraints.fill = GridBagConstraints.HORIZONTAL;
-        contentPane.add(selectFolderButton, constraints);
+        contentPane.add(selectInputFolderButton, constraints);
 
         // Add the non-editable text field for the selected folder
-        selectedFolderTextField = createNonEditableTextField();
+        selectedInputFolderTextField = createNonEditableTextField();
         constraints.gridx = 1;
         constraints.gridy = 0;
         constraints.weightx = 1.0; // Allow horizontal growth
-        contentPane.add(selectedFolderTextField, constraints);
+        contentPane.add(selectedInputFolderTextField, constraints);
     }
 
     private void initializeCenterPanelWithGridBag() {
@@ -114,7 +118,7 @@ public class ReliveTrackMerger extends JFrame {
         GridBagConstraints constraints = new GridBagConstraints();
         processButton = new JButton(PROCESS_BUTTON_LABEL);
         processButton.addActionListener(e -> processSelectedFiles());
-        processButton.setEnabled(selectedFolder != null);
+        processButton.setEnabled(selectedInputFolder != null);
 
         constraints.gridx = 0;
         constraints.gridy = 4;
@@ -127,7 +131,8 @@ public class ReliveTrackMerger extends JFrame {
     // Helper methods for creating reusable components
     private JButton createSelectFolderButton() {
         JButton button = new JButton(SELECT_FOLDER_BUTTON_LABEL);
-        button.addActionListener(e -> selectVideoFolder());
+        button.setPreferredSize(DEFAULT_SELECT_BUTTON_SIZE);
+        button.addActionListener(e -> selectInputFolder());
         return button;
     }
 
@@ -139,12 +144,15 @@ public class ReliveTrackMerger extends JFrame {
 
     private JPanel createOutputFolderPanel() {
         JPanel outputFolderPanel = new JPanel(new BorderLayout());
-        outputFolderLabel = new JLabel(OUTPUT_FOLDER_TEXT);
-        outputFolderLabel.setBorder(BorderFactory.createEmptyBorder(0, 13, 0, 13));
-        outputPathField = createNonEditableTextField();
 
-        outputFolderPanel.add(outputFolderLabel, BorderLayout.WEST);
-        outputFolderPanel.add(outputPathField, BorderLayout.CENTER);
+        selectOutputFolderButton = new JButton(OUTPUT_FOLDER_TEXT);
+        selectOutputFolderButton.addActionListener(e -> selectOutputFolder());
+        selectOutputFolderButton.setPreferredSize(DEFAULT_SELECT_BUTTON_SIZE);
+
+        selectedOutputFolderTextField = createNonEditableTextField();
+
+        outputFolderPanel.add(selectOutputFolderButton, BorderLayout.WEST);
+        outputFolderPanel.add(selectedOutputFolderTextField, BorderLayout.CENTER);
         return outputFolderPanel;
     }
 
@@ -170,30 +178,43 @@ public class ReliveTrackMerger extends JFrame {
         }
     }
 
-    private void selectVideoFolder() {
+    private void selectInputFolder() {
         JFileChooser fileChooser = new JFileChooser();
         fileChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
         int returnValue = fileChooser.showOpenDialog(this);
         if (returnValue == JFileChooser.APPROVE_OPTION) {
-            selectedFolder = fileChooser.getSelectedFile();
-            selectedFolderTextField.setText(selectedFolder.getAbsolutePath());
+            selectedInputFolder = fileChooser.getSelectedFile();
+            selectedInputFolderTextField.setText(selectedInputFolder.getAbsolutePath());
             loadVideoFiles();
 
-            outputPathField.setVisible(true);
-            outputPathField.setText(selectedFolder.getAbsolutePath() + File.separator + "merged");
+            if (selectedOutputFolder == null) {
+                selectedOutputFolderTextField.setText(selectedInputFolder.getAbsolutePath() + File.separator + OUTPUT_FOLDER_NAME);
+            }
 
+            selectOutputFolderButton.setEnabled(true);
             processButton.setEnabled(true);
         } else {
-            selectedFolder = null;
-            selectedFolderTextField.setText("");
+            selectedInputFolder = null;
+            selectedInputFolderTextField.setText("");
+
             processButton.setEnabled(false);
+        }
+    }
+
+    private void selectOutputFolder() {
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+        int returnValue = fileChooser.showOpenDialog(this);
+        if (returnValue == JFileChooser.APPROVE_OPTION) {
+            selectedOutputFolder = fileChooser.getSelectedFile();
+            selectedOutputFolderTextField.setText(selectedOutputFolder.getAbsolutePath() + File.separator + OUTPUT_FOLDER_NAME);
         }
     }
 
     private void loadVideoFiles() {
         listModel.clear();
-        if (selectedFolder != null && selectedFolder.isDirectory()) {
-            List<File> videoFiles = RecursiveReplayFetcher.fetchUnprocessedFiles(selectedFolder);
+        if (selectedInputFolder != null && selectedInputFolder.isDirectory()) {
+            List<File> videoFiles = RecursiveReplayFetcher.fetchUnprocessedFiles(selectedInputFolder);
             filesToProcess = videoFiles.stream().sorted(Comparator.comparing(File::getName)).toList();
 
             for (File videoFile : videoFiles) {
@@ -222,23 +243,22 @@ public class ReliveTrackMerger extends JFrame {
             return;
         }
 
-        String outputFolderName = "merged";
-        File mergedFolder = new File(selectedFolder, outputFolderName);
-        if (mergedFolder.exists()) {
-            System.out.println("Merged folder exists already, deleting it and creating a new one");
-            deleteDirectory(mergedFolder);
+        File outputFolder = new File(selectedOutputFolder, OUTPUT_FOLDER_NAME);
+        if (outputFolder.exists()) {
+            System.out.println("Output folder already exists at selected location. Deleting...");
+            deleteDirectory(outputFolder);
         }
-        mergedFolder.mkdirs();
+        outputFolder.mkdirs();
 
         System.out.println("Processing " + filesToProcess.size() + " file(s)");
-        System.out.println("Output folder is: " + mergedFolder.getAbsolutePath());
+        System.out.println("Output folder is: " + outputFolder.getAbsolutePath());
 
         System.out.println();
         System.out.println("-----------------------------------------------------------------------------");
         System.out.println();
 
         CountDownLatch latch = new CountDownLatch(filesToProcess.size());
-        ReplayProcessor processor = new ReplayProcessor(mergedFolder, selectedFolder);
+        ReplayProcessor processor = new ReplayProcessor(outputFolder, selectedInputFolder);
 
         filesToProcess.forEach(file -> {
             ReplayProcessingWorker worker = new ReplayProcessingWorker(file, processor, this::updateStatus, latch);
