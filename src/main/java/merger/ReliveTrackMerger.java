@@ -18,8 +18,11 @@ public class ReliveTrackMerger extends JFrame {
     private static final String BUTTON_OUTPUT_LABEL = "Select Output Folder";
     private static final String BUTTON_PROCESS_LABEL = "Process";
     private static final String BUTTON_PROCESS_TOOLTIP = "Please select an input folder first before processing.";
-    private static final String CHECKBOX_CLEAN_OUTPUT = "Clean output folder before processing";
-    private static final String CHECKBOX_CLEAN_OUTPUT_TOOLTIP = "Leaving this unchecked will overwrite existing files in the output folder. Check this box to clean the output folder before processing.";
+    private static final String CHECKBOX_CLEAN_OUTPUT_FOLDER = "Clean output folder before processing";
+    private static final String CHECKBOX_CLEAN_OUTPUT_FOLDER_TOOLTIP = "Leaving this unchecked will overwrite existing files in the output folder. Check this box to clean the output folder before processing.";
+    private static final String CHECKBOX_OPEN_OUTPUT_FOLDER = "Open output folder after processing";
+    private static final String CHECKBOX_OPEN_OUTPUT_FOLDER_TOOLTIP = "Automatically open the output folder after processing is complete.";
+
 
     public static final String OUTPUT_FOLDER_NAME = "replays_merged";
 
@@ -34,6 +37,7 @@ public class ReliveTrackMerger extends JFrame {
     private JTextField selectedInputFolderTextField;
     private JTextField selectedOutputFolderTextField;
     private JCheckBox cleanOutputFolderCheckBox;
+    private JCheckBox openOutputFolderCheckBox;
     private JTextArea logTextArea;
     private JList<String> videoList;
     private DefaultListModel<String> listModel;
@@ -160,13 +164,19 @@ public class ReliveTrackMerger extends JFrame {
 
         selectedOutputFolderTextField = createNonEditableTextField();
 
-        cleanOutputFolderCheckBox = new JCheckBox(CHECKBOX_CLEAN_OUTPUT);
-        cleanOutputFolderCheckBox.setToolTipText(CHECKBOX_CLEAN_OUTPUT_TOOLTIP);
+        cleanOutputFolderCheckBox = new JCheckBox(CHECKBOX_CLEAN_OUTPUT_FOLDER);
+        cleanOutputFolderCheckBox.setToolTipText(CHECKBOX_CLEAN_OUTPUT_FOLDER_TOOLTIP);
         cleanOutputFolderCheckBox.setSelected(false);
         cleanOutputFolderCheckBox.setFocusable(false);
 
+        openOutputFolderCheckBox = new JCheckBox(CHECKBOX_OPEN_OUTPUT_FOLDER);
+        openOutputFolderCheckBox.setToolTipText(CHECKBOX_OPEN_OUTPUT_FOLDER_TOOLTIP);
+        openOutputFolderCheckBox.setSelected(false);
+        openOutputFolderCheckBox.setFocusable(false);
+
         outputFolderPanel.add(selectOutputFolderButton, BorderLayout.WEST);
         outputFolderPanel.add(selectedOutputFolderTextField, BorderLayout.CENTER);
+        outputFolderPanel.add(cleanOutputFolderCheckBox, BorderLayout.SOUTH);
         outputFolderPanel.add(cleanOutputFolderCheckBox, BorderLayout.SOUTH);
 
         return outputFolderPanel;
