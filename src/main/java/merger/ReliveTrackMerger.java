@@ -14,9 +14,12 @@ import java.util.concurrent.CountDownLatch;
 public class ReliveTrackMerger extends JFrame {
 
     private static final String APP_TITLE = "Relive Track Merger";
-    private static final String SELECT_FOLDER_BUTTON_LABEL = "Select Input Folder";
-    private static final String OUTPUT_FOLDER_TEXT = "Select Output Folder";
-    private static final String PROCESS_BUTTON_LABEL = "Process";
+    private static final String BUTTON_INPUT_LABEL = "Select Input Folder";
+    private static final String BUTTON_OUTPUT_LABEL = "Select Output Folder";
+    private static final String BUTTON_PROCESS_LABEL = "Process";
+    private static final String BUTTON_PROCESS_TOOLTIP = "Please select an input folder first before processing.";
+    private static final String CHECKBOX_CLEAN_OUTPUT = "Clean output folder before processing";
+    private static final String CHECKBOX_CLEAN_OUTPUT_TOOLTIP = "Leaving this unchecked will overwrite existing files in the output folder. Check this box to clean the output folder before processing.";
 
     public static final String OUTPUT_FOLDER_NAME = "replays_merged";
 
@@ -48,9 +51,9 @@ public class ReliveTrackMerger extends JFrame {
 
     public ReliveTrackMerger() {
         initializeFrameSettings();
-        initializeContentPaneWithGridBag();
+        initializeContentPane();
         initializeInputPanel();
-        initializeCenterPanelWithGridBag();
+        initializeOutputListLogPanels();
         initializeProcessButton();
         redirectSystemOutToTextArea();
         pack();
@@ -63,7 +66,7 @@ public class ReliveTrackMerger extends JFrame {
         setPreferredSize(new Dimension(WINDOW_WIDTH, WINDOW_HEIGHT));
     }
 
-    private void initializeContentPaneWithGridBag() {
+    private void initializeContentPane() {
         contentPane = new JPanel(new GridBagLayout());
         setContentPane(contentPane);
     }
@@ -86,7 +89,7 @@ public class ReliveTrackMerger extends JFrame {
         contentPane.add(selectedInputFolderTextField, constraints);
     }
 
-    private void initializeCenterPanelWithGridBag() {
+    private void initializeOutputListLogPanels() {
         GridBagConstraints constraints = new GridBagConstraints();
 
         // Add output folder panel
@@ -117,9 +120,11 @@ public class ReliveTrackMerger extends JFrame {
 
     private void initializeProcessButton() {
         GridBagConstraints constraints = new GridBagConstraints();
-        processButton = new JButton(PROCESS_BUTTON_LABEL);
+        processButton = new JButton(BUTTON_PROCESS_LABEL);
         processButton.addActionListener(e -> processSelectedFiles());
         processButton.setEnabled(selectedInputFolder != null);
+        processButton.setFocusable(false);
+        processButton.setToolTipText(BUTTON_PROCESS_TOOLTIP);
 
         constraints.gridx = 0;
         constraints.gridy = 4;
@@ -131,8 +136,9 @@ public class ReliveTrackMerger extends JFrame {
 
     // Helper methods for creating reusable components
     private JButton createSelectFolderButton() {
-        JButton button = new JButton(SELECT_FOLDER_BUTTON_LABEL);
+        JButton button = new JButton(BUTTON_INPUT_LABEL);
         button.setPreferredSize(DEFAULT_SELECT_BUTTON_SIZE);
+        button.setFocusable(false);
         button.addActionListener(e -> selectInputFolder());
         return button;
     }
@@ -140,21 +146,24 @@ public class ReliveTrackMerger extends JFrame {
     private JTextField createNonEditableTextField() {
         JTextField textField = new JTextField();
         textField.setEditable(false);
+        textField.setFocusable(false);
         return textField;
     }
 
     private JPanel createOutputFolderPanel() {
         JPanel outputFolderPanel = new JPanel(new BorderLayout());
 
-        selectOutputFolderButton = new JButton(OUTPUT_FOLDER_TEXT);
+        selectOutputFolderButton = new JButton(BUTTON_OUTPUT_LABEL);
         selectOutputFolderButton.addActionListener(e -> selectOutputFolder());
         selectOutputFolderButton.setPreferredSize(DEFAULT_SELECT_BUTTON_SIZE);
+        selectOutputFolderButton.setFocusable(false);
 
         selectedOutputFolderTextField = createNonEditableTextField();
 
-        cleanOutputFolderCheckBox = new JCheckBox("Clean output folder before processing");
-        cleanOutputFolderCheckBox.setSelected(false); // Default unchecked
-        cleanOutputFolderCheckBox.setToolTipText("Leaving this unchecked will overwrite existing files in the output folder. Check this box to clean the output folder before processing.");
+        cleanOutputFolderCheckBox = new JCheckBox(CHECKBOX_CLEAN_OUTPUT);
+        cleanOutputFolderCheckBox.setToolTipText(CHECKBOX_CLEAN_OUTPUT_TOOLTIP);
+        cleanOutputFolderCheckBox.setSelected(false);
+        cleanOutputFolderCheckBox.setFocusable(false);
 
         outputFolderPanel.add(selectOutputFolderButton, BorderLayout.WEST);
         outputFolderPanel.add(selectedOutputFolderTextField, BorderLayout.CENTER);
@@ -166,12 +175,14 @@ public class ReliveTrackMerger extends JFrame {
     private JScrollPane createVideoListScrollPane() {
         listModel = new DefaultListModel<>();
         videoList = new JList<>(listModel);
+        videoList.setFocusable(false);
         return new JScrollPane(videoList);
     }
 
     private JScrollPane createLogScrollPane() {
         logTextArea = new JTextArea();
         logTextArea.setEditable(false);
+        logTextArea.setFocusable(false);
         JScrollPane logScrollPane = new JScrollPane(logTextArea);
         logScrollPane.setPreferredSize(new Dimension(0, 100));
         return logScrollPane;
@@ -201,11 +212,13 @@ public class ReliveTrackMerger extends JFrame {
 
             selectOutputFolderButton.setEnabled(true);
             processButton.setEnabled(true);
+            processButton.setToolTipText(null);
         } else {
             selectedInputFolder = null;
             selectedInputFolderTextField.setText("");
 
             processButton.setEnabled(false);
+            processButton.setToolTipText(BUTTON_PROCESS_TOOLTIP);
         }
     }
 
