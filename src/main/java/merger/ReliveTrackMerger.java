@@ -14,15 +14,15 @@ import java.util.concurrent.CountDownLatch;
 public class ReliveTrackMerger extends JFrame {
 
     private static final String APP_TITLE = "Relive Track Merger";
-    private static final String SELECT_FOLDER_BUTTON_LABEL = "Select Folder";
-    private static final String OUTPUT_FOLDER_TEXT = "Output Folder";
+    private static final String SELECT_FOLDER_BUTTON_LABEL = "Select Input Folder";
+    private static final String OUTPUT_FOLDER_TEXT = "Select Output Folder";
     private static final String PROCESS_BUTTON_LABEL = "Process";
 
     public static final String OUTPUT_FOLDER_NAME = "replays_merged";
 
     private static final int WINDOW_WIDTH = 600;
     private static final int WINDOW_HEIGHT = 400;
-    private static final Dimension DEFAULT_SELECT_BUTTON_SIZE = new Dimension(115, 25);
+    private static final Dimension DEFAULT_SELECT_BUTTON_SIZE = new Dimension(150, 25);
 
     private JPanel contentPane;
     private JButton processButton;
