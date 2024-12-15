@@ -20,7 +20,7 @@ public class ReplayProcessor {
         String videoNameWithoutExtension = videoName.substring(0, videoName.lastIndexOf('.'));
         File microphoneTrack = new File(videoFile.getParent(), videoNameWithoutExtension + ".m4a");
 
-        var outputPath = outputDirectory.getAbsolutePath();
+        String outputPath = outputDirectory.getAbsolutePath();
         if (isFromSubdirectory(videoFile)) {
             // if the replay was located in a subdirectory of the input directory, keep the same folder structure
             // at the output location
