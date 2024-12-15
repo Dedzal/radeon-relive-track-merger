@@ -39,9 +39,11 @@ public class ReliveTrackMerger extends JFrame {
     private JTextField selectedOutputFolderTextField;
     private JCheckBox cleanOutputFolderCheckBox;
     private JCheckBox openOutputFolderCheckBox;
-    private JTextArea logTextArea;
     private JList<String> videoList;
     private DefaultListModel<String> listModel;
+    private JScrollPane videoListScrollPane;
+    private JTextArea logTextArea;
+    private JScrollPane logScrollPane;
 
     private File selectedInputFolder;
     private File selectedOutputFolder;
@@ -141,32 +143,41 @@ public class ReliveTrackMerger extends JFrame {
         constraints.anchor = GridBagConstraints.WEST;
         contentPane.add(openOutputFolderCheckBox, constraints);
 
-        listModel = new DefaultListModel<>();
-        videoList = new JList<>(listModel);
-        videoList.setFocusable(false);
-        JScrollPane jScrollPane = new JScrollPane(videoList);
+        videoListScrollPane = createVideoListScrollPane();
         constraints.gridx = 0;
         constraints.gridy = 4;
         constraints.gridwidth = 2;
         constraints.fill = GridBagConstraints.BOTH;
         constraints.weighty = 1.0;
-        contentPane.add(jScrollPane, constraints);
+        contentPane.add(videoListScrollPane, constraints);
 
-        JScrollPane logScrollPane = createLogScrollPane();
+        logScrollPane = createLogScrollPane();
         constraints.gridx = 0;
         constraints.gridy = 5;
         constraints.gridwidth = 2;
         constraints.fill = GridBagConstraints.BOTH;
         contentPane.add(logScrollPane, constraints);
 
-        processButton = createButton(BUTTON_PROCESS_LABEL, e -> processSelectedFiles());
-        processButton.setEnabled(selectedInputFolder != null);
-        processButton.setToolTipText(BUTTON_PROCESS_TOOLTIP);
+        processButton = createProcessButton();
         constraints.gridx = 0;
         constraints.gridy = 6;
         constraints.gridwidth = 2; // Span the button across the entire width
         constraints.fill = GridBagConstraints.HORIZONTAL;
         contentPane.add(processButton, constraints);
+    }
+
+    private JScrollPane createVideoListScrollPane() {
+        listModel = new DefaultListModel<>();
+        videoList = new JList<>(listModel);
+        videoList.setFocusable(false);
+        return new JScrollPane(videoList);
+    }
+
+    private JButton createProcessButton() {
+        JButton button = createButton(BUTTON_PROCESS_LABEL, e -> processSelectedFiles());
+        button.setEnabled(selectedInputFolder != null);
+        button.setToolTipText(BUTTON_PROCESS_TOOLTIP);
+        return button;
     }
 
     private JTextField createNonEditableTextField() {
@@ -175,7 +186,6 @@ public class ReliveTrackMerger extends JFrame {
         textField.setFocusable(false);
         return textField;
     }
-
 
     private JScrollPane createLogScrollPane() {
         logTextArea = new JTextArea();
