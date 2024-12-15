@@ -24,29 +24,25 @@ public class ReliveTrackMerger extends JFrame {
     private static final String CHECKBOX_OPEN_OUTPUT_FOLDER = "Open output folder after processing";
     private static final String CHECKBOX_OPEN_OUTPUT_FOLDER_TOOLTIP = "Automatically open the output folder after processing is complete.";
 
-    private static final String LABEL_TOTAL_REPLAYS_SIZE = "Total size of replays: ";
-    private static final String LABEL_AVAILABLE_DISK_SPACE = "Available disk space: ";
-
-
-    public static final String OUTPUT_FOLDER_NAME = "replays_merged";
+    private static final String OUTPUT_FOLDER_NAME = "replays_merged";
 
     private static final int WINDOW_WIDTH = 600;
     private static final int WINDOW_HEIGHT = 600;
     private static final Dimension DEFAULT_SELECT_BUTTON_SIZE = new Dimension(150, 25);
 
     private JPanel contentPane;
-    private JButton processButton;
-    private JButton selectInputFolderButton;
-    private JButton selectOutputFolderButton;
-    private JTextField selectedInputFolderTextField;
-    private JTextField selectedOutputFolderTextField;
-    private JCheckBox cleanOutputFolderCheckBox;
-    private JCheckBox openOutputFolderCheckBox;
-    private JList<String> videoList;
-    private DefaultListModel<String> listModel;
-    private JScrollPane videoListScrollPane;
-    private JTextArea logTextArea;
-    private JScrollPane logScrollPane;
+    private JButton buttonProcess;
+    private JButton buttonSelectInputFolder;
+    private JButton buttonSelectOutputFolder;
+    private JTextField textfieldInputFolderPath;
+    private JTextField textfieldOutputFolderPath;
+    private JCheckBox checkboxCleanOutputFolder;
+    private JCheckBox checkboxOpenOutputFolder;
+    private JList<String> listVideoView;
+    private DefaultListModel<String> listVideoModel;
+    private JScrollPane scrollpaneVideoList;
+    private JTextArea textareaLog;
+    private JScrollPane scrollpaneLog;
 
     private File selectedInputFolder;
     private File selectedOutputFolder;
@@ -100,82 +96,82 @@ public class ReliveTrackMerger extends JFrame {
     private void initializeUIElements() {
         GridBagConstraints constraints = new GridBagConstraints();
 
-        selectInputFolderButton = createButton(BUTTON_INPUT_LABEL, e -> selectInputFolderAction());
+        buttonSelectInputFolder = createButton(BUTTON_INPUT_LABEL, e -> selectInputFolderAction());
         constraints.gridx = 0;
         constraints.gridy = 0;
         constraints.weightx = 0;
         constraints.fill = GridBagConstraints.NONE;
         constraints.anchor = GridBagConstraints.WEST;
-        contentPane.add(selectInputFolderButton, constraints);
+        contentPane.add(buttonSelectInputFolder, constraints);
 
-        selectedInputFolderTextField = createNonEditableTextField();
+        textfieldInputFolderPath = createNonEditableTextField();
         constraints.gridx = 1;
         constraints.gridy = 0;
         constraints.weightx = 1.0;
         constraints.fill = GridBagConstraints.HORIZONTAL;
-        contentPane.add(selectedInputFolderTextField, constraints);
+        contentPane.add(textfieldInputFolderPath, constraints);
 
-        selectOutputFolderButton = createButton(BUTTON_OUTPUT_LABEL, e -> selectOutputFolderAction());
+        buttonSelectOutputFolder = createButton(BUTTON_OUTPUT_LABEL, e -> selectOutputFolderAction());
         constraints.gridx = 0;
         constraints.gridy = 1;
         constraints.weightx = 0;
         constraints.fill = GridBagConstraints.NONE;
         constraints.anchor = GridBagConstraints.WEST;
-        contentPane.add(selectOutputFolderButton, constraints);
+        contentPane.add(buttonSelectOutputFolder, constraints);
 
-        selectedOutputFolderTextField = createNonEditableTextField();
+        textfieldOutputFolderPath = createNonEditableTextField();
         constraints.gridx = 1;
         constraints.gridy = 1;
         constraints.weightx = 1.0; // Allow horizontal growth
         constraints.fill = GridBagConstraints.HORIZONTAL;
-        contentPane.add(selectedOutputFolderTextField, constraints);
+        contentPane.add(textfieldOutputFolderPath, constraints);
 
-        cleanOutputFolderCheckBox = createCheckBox(CHECKBOX_CLEAN_OUTPUT_FOLDER, CHECKBOX_CLEAN_OUTPUT_FOLDER_TOOLTIP);
+        checkboxCleanOutputFolder = createCheckBox(CHECKBOX_CLEAN_OUTPUT_FOLDER, CHECKBOX_CLEAN_OUTPUT_FOLDER_TOOLTIP);
         constraints.gridx = 0;
         constraints.gridy = 2;
         constraints.gridwidth = 2;
         constraints.fill = GridBagConstraints.VERTICAL;
         constraints.anchor = GridBagConstraints.WEST;
-        contentPane.add(cleanOutputFolderCheckBox, constraints);
+        contentPane.add(checkboxCleanOutputFolder, constraints);
 
-        openOutputFolderCheckBox = createCheckBox(CHECKBOX_OPEN_OUTPUT_FOLDER, CHECKBOX_OPEN_OUTPUT_FOLDER_TOOLTIP);
+        checkboxOpenOutputFolder = createCheckBox(CHECKBOX_OPEN_OUTPUT_FOLDER, CHECKBOX_OPEN_OUTPUT_FOLDER_TOOLTIP);
         constraints.gridx = 0;
         constraints.gridy = 3;
         constraints.gridwidth = 2;
         constraints.fill = GridBagConstraints.VERTICAL;
         constraints.anchor = GridBagConstraints.WEST;
-        contentPane.add(openOutputFolderCheckBox, constraints);
+        contentPane.add(checkboxOpenOutputFolder, constraints);
 
-        videoListScrollPane = createVideoListScrollPane();
+        scrollpaneVideoList = createVideoListScrollPane();
         constraints.gridx = 0;
         constraints.gridy = 4;
         constraints.gridwidth = 2;
         constraints.fill = GridBagConstraints.BOTH;
         constraints.weighty = 1.0;
-        contentPane.add(videoListScrollPane, constraints);
+        contentPane.add(scrollpaneVideoList, constraints);
 
-        logScrollPane = createLogScrollPane();
+        scrollpaneLog = createLogScrollPane();
         constraints.gridx = 0;
         constraints.gridy = 5;
         constraints.gridwidth = 2;
         constraints.weighty = 1.0;
         constraints.fill = GridBagConstraints.BOTH;
-        contentPane.add(logScrollPane, constraints);
+        contentPane.add(scrollpaneLog, constraints);
 
-        processButton = createProcessButton();
+        buttonProcess = createProcessButton();
         constraints.gridx = 0;
         constraints.gridy = 6;
         constraints.gridwidth = 2; // Span the button across the entire width
         constraints.weighty = 0;
         constraints.fill = GridBagConstraints.HORIZONTAL;
-        contentPane.add(processButton, constraints);
+        contentPane.add(buttonProcess, constraints);
     }
 
     private JScrollPane createVideoListScrollPane() {
-        listModel = new DefaultListModel<>();
-        videoList = new JList<>(listModel);
-        videoList.setFocusable(false);
-        return new JScrollPane(videoList);
+        listVideoModel = new DefaultListModel<>();
+        listVideoView = new JList<>(listVideoModel);
+        listVideoView.setFocusable(false);
+        return new JScrollPane(listVideoView);
     }
 
     private JButton createProcessButton() {
@@ -193,10 +189,10 @@ public class ReliveTrackMerger extends JFrame {
     }
 
     private JScrollPane createLogScrollPane() {
-        logTextArea = new JTextArea();
-        logTextArea.setEditable(false);
-        logTextArea.setFocusable(false);
-        JScrollPane logScrollPane = new JScrollPane(logTextArea);
+        textareaLog = new JTextArea();
+        textareaLog.setEditable(false);
+        textareaLog.setFocusable(false);
+        JScrollPane logScrollPane = new JScrollPane(textareaLog);
         logScrollPane.setPreferredSize(new Dimension(0, 100));
         return logScrollPane;
     }
@@ -215,23 +211,23 @@ public class ReliveTrackMerger extends JFrame {
         int returnValue = fileChooser.showOpenDialog(this);
         if (returnValue == JFileChooser.APPROVE_OPTION) {
             selectedInputFolder = fileChooser.getSelectedFile();
-            selectedInputFolderTextField.setText(selectedInputFolder.getAbsolutePath());
+            textfieldInputFolderPath.setText(selectedInputFolder.getAbsolutePath());
             loadVideoFiles();
 
             if (selectedOutputFolder == null) {
                 selectedOutputFolder = selectedInputFolder;
-                selectedOutputFolderTextField.setText(selectedInputFolder.getAbsolutePath() + File.separator + OUTPUT_FOLDER_NAME);
+                textfieldOutputFolderPath.setText(selectedInputFolder.getAbsolutePath() + File.separator + OUTPUT_FOLDER_NAME);
             }
 
-            selectOutputFolderButton.setEnabled(true);
-            processButton.setEnabled(true);
-            processButton.setToolTipText(null);
+            buttonSelectOutputFolder.setEnabled(true);
+            buttonProcess.setEnabled(true);
+            buttonProcess.setToolTipText(null);
         } else {
             selectedInputFolder = null;
-            selectedInputFolderTextField.setText("");
+            textfieldInputFolderPath.setText("");
 
-            processButton.setEnabled(false);
-            processButton.setToolTipText(BUTTON_PROCESS_TOOLTIP);
+            buttonProcess.setEnabled(false);
+            buttonProcess.setToolTipText(BUTTON_PROCESS_TOOLTIP);
         }
     }
 
@@ -241,21 +237,21 @@ public class ReliveTrackMerger extends JFrame {
         int returnValue = fileChooser.showOpenDialog(this);
         if (returnValue == JFileChooser.APPROVE_OPTION) {
             selectedOutputFolder = fileChooser.getSelectedFile();
-            selectedOutputFolderTextField.setText(selectedOutputFolder.getAbsolutePath() + File.separator + OUTPUT_FOLDER_NAME);
+            textfieldOutputFolderPath.setText(selectedOutputFolder.getAbsolutePath() + File.separator + OUTPUT_FOLDER_NAME);
         }
     }
 
     private void loadVideoFiles() {
-        listModel.clear();
+        listVideoModel.clear();
         if (selectedInputFolder != null && selectedInputFolder.isDirectory()) {
             List<File> videoFiles = RecursiveReplayFetcher.fetchUnprocessedFiles(selectedInputFolder);
             filesToProcess = videoFiles.stream().sorted(Comparator.comparing(File::getName)).toList();
 
             for (File videoFile : videoFiles) {
-                listModel.addElement(videoFile.getName());
+                listVideoModel.addElement(videoFile.getName());
             }
 
-            videoList.repaint();
+            listVideoView.repaint();
         }
     }
 
@@ -270,17 +266,17 @@ public class ReliveTrackMerger extends JFrame {
         long startTime = System.currentTimeMillis();
 
         // clean the log text area before processing
-        logTextArea.setText("");
+        textareaLog.setText("");
 
         if (filesToProcess == null || filesToProcess.isEmpty()) {
             System.out.println("No files to process");
             return;
         }
 
-        processButton.setEnabled(false);
+        buttonProcess.setEnabled(false);
 
         File outputFolder = new File(selectedOutputFolder, OUTPUT_FOLDER_NAME);
-        if (cleanOutputFolderCheckBox.isSelected() && outputFolder.exists()) {
+        if (checkboxCleanOutputFolder.isSelected() && outputFolder.exists()) {
             System.out.println("Cleaning output folder...");
             deleteDirectory(outputFolder);
         }
@@ -296,7 +292,7 @@ public class ReliveTrackMerger extends JFrame {
                     "Not Enough Available Disk Space",
                     JOptionPane.WARNING_MESSAGE
             );
-            processButton.setEnabled(true);
+            buttonProcess.setEnabled(true);
             return;
         }
         System.out.println("Total file size of selected replays: " + String.format("%.1f", replaysSize) + " GB");
@@ -318,9 +314,9 @@ public class ReliveTrackMerger extends JFrame {
         });
 
         startFinishingLogThread(latch, startTime);
-        processButton.setEnabled(true);
+        buttonProcess.setEnabled(true);
 
-        if (openOutputFolderCheckBox.isSelected()) {
+        if (checkboxOpenOutputFolder.isSelected()) {
             openOutputDirectory();
         }
     }
@@ -377,10 +373,10 @@ public class ReliveTrackMerger extends JFrame {
     private void updateStatus(String updatedStatus) {
         SwingUtilities.invokeLater(() -> {
             String videoName = updatedStatus.substring(2); // Assume status is a single character followed by a space
-            for (int i = 0; i < listModel.getSize(); i++) {
-                String currentName = listModel.getElementAt(i);
+            for (int i = 0; i < listVideoModel.getSize(); i++) {
+                String currentName = listVideoModel.getElementAt(i);
                 if (currentName.trim().endsWith(videoName)) {
-                    listModel.set(i, updatedStatus);
+                    listVideoModel.set(i, updatedStatus);
                     break;
                 }
             }
@@ -403,7 +399,7 @@ public class ReliveTrackMerger extends JFrame {
             }
 
             private void appendLog(String text) {
-                SwingUtilities.invokeLater(() -> logTextArea.append(text));
+                SwingUtilities.invokeLater(() -> textareaLog.append(text));
             }
         };
 
@@ -412,4 +408,6 @@ public class ReliveTrackMerger extends JFrame {
         System.setOut(printStream);
         System.setErr(printStream); // Redirect error stream as well
     }
+
+
 }

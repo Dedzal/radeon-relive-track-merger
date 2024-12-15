@@ -10,9 +10,9 @@
 3. **Start Processing**: Press the *"Process"* button to begin merging the microphone tracks into the replay videos. The application provides real-time progress logs.
 4. **View Output**: The merged files are saved in an output directory while maintaining the same folder structure as the input folder.
 
-**Note**: A corresponding microphone track is identified as a file located in the same directory as the replay, sharing 
-the same file name but with the `.m4a` extension. If no matching microphone track is found, the replay will be copied 
-unchanged to the output directory.
+**Note**: A microphone track is identified as a file located in the same directory as a replay, sharing 
+the same file name as the replay but with the `.m4a` extension. If no matching microphone track is found, the replay will be copied 
+to the output directory.
 
 ### Prerequisites
 
