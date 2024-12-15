@@ -4,6 +4,7 @@ import com.formdev.flatlaf.FlatDarculaLaf;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.ActionListener;
 import java.io.File;
 import java.io.OutputStream;
 import java.io.PrintStream;
@@ -56,9 +57,9 @@ public class ReliveTrackMerger extends JFrame {
     public ReliveTrackMerger() {
         initializeFrameSettings();
         initializeContentPane();
-        initializeInputPanel();
-        initializeOutputListLogPanels();
-        initializeProcessButton();
+
+        initializeUIElements();
+
         redirectSystemOutToTextArea();
         pack();
         setLocationRelativeTo(null);
@@ -75,76 +76,97 @@ public class ReliveTrackMerger extends JFrame {
         setContentPane(contentPane);
     }
 
-    private void initializeInputPanel() {
+    private JButton createButton(String label, ActionListener actionListener) {
+        JButton button = new JButton(label);
+        button.setPreferredSize(ReliveTrackMerger.DEFAULT_SELECT_BUTTON_SIZE);
+        button.setFocusable(false);
+        button.addActionListener(actionListener);
+        return button;
+    }
+
+    private JCheckBox createCheckBox(String label, String tooltip) {
+        JCheckBox checkBox = new JCheckBox(label);
+        checkBox.setToolTipText(tooltip);
+        checkBox.setSelected(false);
+        checkBox.setFocusable(false);
+        return checkBox;
+    }
+
+    private void initializeUIElements() {
         GridBagConstraints constraints = new GridBagConstraints();
 
-        // Add the "Select Folder" button
-        selectInputFolderButton = createSelectFolderButton();
+        selectInputFolderButton = createButton(BUTTON_INPUT_LABEL, e -> selectInputFolderAction());
         constraints.gridx = 0;
         constraints.gridy = 0;
-        constraints.fill = GridBagConstraints.HORIZONTAL;
+        constraints.weightx = 0;
+        constraints.fill = GridBagConstraints.NONE;
+        constraints.anchor = GridBagConstraints.WEST;
         contentPane.add(selectInputFolderButton, constraints);
 
-        // Add the non-editable text field for the selected folder
         selectedInputFolderTextField = createNonEditableTextField();
         constraints.gridx = 1;
         constraints.gridy = 0;
-        constraints.weightx = 1.0; // Allow horizontal growth
+        constraints.weightx = 1.0;
+        constraints.fill = GridBagConstraints.HORIZONTAL;
         contentPane.add(selectedInputFolderTextField, constraints);
-    }
 
-    private void initializeOutputListLogPanels() {
-        GridBagConstraints constraints = new GridBagConstraints();
-
-        // Add output folder panel
-        JPanel outputFolderPanel = createOutputFolderPanel();
+        selectOutputFolderButton = createButton(BUTTON_OUTPUT_LABEL, e -> selectOutputFolderAction());
         constraints.gridx = 0;
         constraints.gridy = 1;
-        constraints.gridwidth = 2; // Span across two columns
-        constraints.fill = GridBagConstraints.HORIZONTAL;
-        contentPane.add(outputFolderPanel, constraints);
+        constraints.weightx = 0;
+        constraints.fill = GridBagConstraints.NONE;
+        constraints.anchor = GridBagConstraints.WEST;
+        contentPane.add(selectOutputFolderButton, constraints);
 
-        // Add video list scroll pane
-        JScrollPane videoListScrollPane = createVideoListScrollPane();
+        selectedOutputFolderTextField = createNonEditableTextField();
+        constraints.gridx = 1;
+        constraints.gridy = 1;
+        constraints.weightx = 1.0; // Allow horizontal growth
+        constraints.fill = GridBagConstraints.HORIZONTAL;
+        contentPane.add(selectedOutputFolderTextField, constraints);
+
+        cleanOutputFolderCheckBox = createCheckBox(CHECKBOX_CLEAN_OUTPUT_FOLDER, CHECKBOX_CLEAN_OUTPUT_FOLDER_TOOLTIP);
         constraints.gridx = 0;
         constraints.gridy = 2;
         constraints.gridwidth = 2;
-        constraints.fill = GridBagConstraints.BOTH;
-        constraints.weighty = 1.0; // Allow vertical growth
-        contentPane.add(videoListScrollPane, constraints);
+        constraints.fill = GridBagConstraints.VERTICAL;
+        constraints.anchor = GridBagConstraints.WEST;
+        contentPane.add(cleanOutputFolderCheckBox, constraints);
 
-        // Add log scroll pane
-        JScrollPane logScrollPane = createLogScrollPane();
+        openOutputFolderCheckBox = createCheckBox(CHECKBOX_OPEN_OUTPUT_FOLDER, CHECKBOX_OPEN_OUTPUT_FOLDER_TOOLTIP);
         constraints.gridx = 0;
         constraints.gridy = 3;
         constraints.gridwidth = 2;
-        constraints.fill = GridBagConstraints.BOTH;
-        contentPane.add(logScrollPane, constraints);
-    }
+        constraints.fill = GridBagConstraints.VERTICAL;
+        constraints.anchor = GridBagConstraints.WEST;
+        contentPane.add(openOutputFolderCheckBox, constraints);
 
-    private void initializeProcessButton() {
-        GridBagConstraints constraints = new GridBagConstraints();
-        processButton = new JButton(BUTTON_PROCESS_LABEL);
-        processButton.addActionListener(e -> processSelectedFiles());
-        processButton.setEnabled(selectedInputFolder != null);
-        processButton.setFocusable(false);
-        processButton.setToolTipText(BUTTON_PROCESS_TOOLTIP);
-
+        listModel = new DefaultListModel<>();
+        videoList = new JList<>(listModel);
+        videoList.setFocusable(false);
+        JScrollPane jScrollPane = new JScrollPane(videoList);
         constraints.gridx = 0;
         constraints.gridy = 4;
+        constraints.gridwidth = 2;
+        constraints.fill = GridBagConstraints.BOTH;
+        constraints.weighty = 1.0;
+        contentPane.add(jScrollPane, constraints);
+
+        JScrollPane logScrollPane = createLogScrollPane();
+        constraints.gridx = 0;
+        constraints.gridy = 5;
+        constraints.gridwidth = 2;
+        constraints.fill = GridBagConstraints.BOTH;
+        contentPane.add(logScrollPane, constraints);
+
+        processButton = createButton(BUTTON_PROCESS_LABEL, e -> processSelectedFiles());
+        processButton.setEnabled(selectedInputFolder != null);
+        processButton.setToolTipText(BUTTON_PROCESS_TOOLTIP);
+        constraints.gridx = 0;
+        constraints.gridy = 6;
         constraints.gridwidth = 2; // Span the button across the entire width
-        constraints.insets = new Insets(5, 5, 5, 5);
         constraints.fill = GridBagConstraints.HORIZONTAL;
         contentPane.add(processButton, constraints);
-    }
-
-    // Helper methods for creating reusable components
-    private JButton createSelectFolderButton() {
-        JButton button = new JButton(BUTTON_INPUT_LABEL);
-        button.setPreferredSize(DEFAULT_SELECT_BUTTON_SIZE);
-        button.setFocusable(false);
-        button.addActionListener(e -> selectInputFolder());
-        return button;
     }
 
     private JTextField createNonEditableTextField() {
@@ -154,40 +176,6 @@ public class ReliveTrackMerger extends JFrame {
         return textField;
     }
 
-    private JPanel createOutputFolderPanel() {
-        JPanel outputFolderPanel = new JPanel(new BorderLayout());
-
-        selectOutputFolderButton = new JButton(BUTTON_OUTPUT_LABEL);
-        selectOutputFolderButton.addActionListener(e -> selectOutputFolder());
-        selectOutputFolderButton.setPreferredSize(DEFAULT_SELECT_BUTTON_SIZE);
-        selectOutputFolderButton.setFocusable(false);
-
-        selectedOutputFolderTextField = createNonEditableTextField();
-
-        cleanOutputFolderCheckBox = new JCheckBox(CHECKBOX_CLEAN_OUTPUT_FOLDER);
-        cleanOutputFolderCheckBox.setToolTipText(CHECKBOX_CLEAN_OUTPUT_FOLDER_TOOLTIP);
-        cleanOutputFolderCheckBox.setSelected(false);
-        cleanOutputFolderCheckBox.setFocusable(false);
-
-        openOutputFolderCheckBox = new JCheckBox(CHECKBOX_OPEN_OUTPUT_FOLDER);
-        openOutputFolderCheckBox.setToolTipText(CHECKBOX_OPEN_OUTPUT_FOLDER_TOOLTIP);
-        openOutputFolderCheckBox.setSelected(false);
-        openOutputFolderCheckBox.setFocusable(false);
-
-        outputFolderPanel.add(selectOutputFolderButton, BorderLayout.WEST);
-        outputFolderPanel.add(selectedOutputFolderTextField, BorderLayout.CENTER);
-        outputFolderPanel.add(cleanOutputFolderCheckBox, BorderLayout.SOUTH);
-        outputFolderPanel.add(cleanOutputFolderCheckBox, BorderLayout.SOUTH);
-
-        return outputFolderPanel;
-    }
-
-    private JScrollPane createVideoListScrollPane() {
-        listModel = new DefaultListModel<>();
-        videoList = new JList<>(listModel);
-        videoList.setFocusable(false);
-        return new JScrollPane(videoList);
-    }
 
     private JScrollPane createLogScrollPane() {
         logTextArea = new JTextArea();
@@ -206,7 +194,7 @@ public class ReliveTrackMerger extends JFrame {
         }
     }
 
-    private void selectInputFolder() {
+    private void selectInputFolderAction() {
         JFileChooser fileChooser = new JFileChooser();
         fileChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
         int returnValue = fileChooser.showOpenDialog(this);
@@ -232,7 +220,7 @@ public class ReliveTrackMerger extends JFrame {
         }
     }
 
-    private void selectOutputFolder() {
+    private void selectOutputFolderAction() {
         JFileChooser fileChooser = new JFileChooser();
         fileChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
         int returnValue = fileChooser.showOpenDialog(this);
@@ -300,6 +288,18 @@ public class ReliveTrackMerger extends JFrame {
 
         startFinishingLogThread(latch, startTime);
         processButton.setEnabled(true);
+
+        if (openOutputFolderCheckBox.isSelected()) {
+            openOutputDirectory();
+        }
+    }
+
+    private void openOutputDirectory() {
+        try {
+            Desktop.getDesktop().open(selectedOutputFolder);
+        } catch (Exception e) {
+            System.err.println(e.getMessage());
+        }
     }
 
     private boolean deleteDirectory(File directoryToBeDeleted) {
