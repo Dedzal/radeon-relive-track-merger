@@ -24,11 +24,14 @@ public class ReliveTrackMerger extends JFrame {
     private static final String CHECKBOX_OPEN_OUTPUT_FOLDER = "Open output folder after processing";
     private static final String CHECKBOX_OPEN_OUTPUT_FOLDER_TOOLTIP = "Automatically open the output folder after processing is complete.";
 
+    private static final String LABEL_TOTAL_REPLAYS_SIZE = "Total size of replays: ";
+    private static final String LABEL_AVAILABLE_DISK_SPACE = "Available disk space: ";
+
 
     public static final String OUTPUT_FOLDER_NAME = "replays_merged";
 
     private static final int WINDOW_WIDTH = 600;
-    private static final int WINDOW_HEIGHT = 400;
+    private static final int WINDOW_HEIGHT = 600;
     private static final Dimension DEFAULT_SELECT_BUTTON_SIZE = new Dimension(150, 25);
 
     private JPanel contentPane;
@@ -155,6 +158,7 @@ public class ReliveTrackMerger extends JFrame {
         constraints.gridx = 0;
         constraints.gridy = 5;
         constraints.gridwidth = 2;
+        constraints.weighty = 1.0;
         constraints.fill = GridBagConstraints.BOTH;
         contentPane.add(logScrollPane, constraints);
 
@@ -162,6 +166,7 @@ public class ReliveTrackMerger extends JFrame {
         constraints.gridx = 0;
         constraints.gridy = 6;
         constraints.gridwidth = 2; // Span the button across the entire width
+        constraints.weighty = 0;
         constraints.fill = GridBagConstraints.HORIZONTAL;
         contentPane.add(processButton, constraints);
     }
@@ -281,6 +286,22 @@ public class ReliveTrackMerger extends JFrame {
         }
         outputFolder.mkdirs();
 
+        var replaysSize = getTotalSizeOfSelectedReplays();
+        var availableDiskSpace = getAvailableDiskSpaceOfOutputDirectory();
+        if (replaysSize >= availableDiskSpace) {
+            JOptionPane.showMessageDialog(
+                    null,
+                    "The total size of the selected files (" + String.format("%.1f", replaysSize) + " GB) exceeds the available disk space (" + String.format("%.1f", availableDiskSpace) + " GB).\n\n" +
+                            "Please free up some space on the target disk or select a different output directory.",
+                    "Not Enough Available Disk Space",
+                    JOptionPane.WARNING_MESSAGE
+            );
+            processButton.setEnabled(true);
+            return;
+        }
+        System.out.println("Total file size of selected replays: " + String.format("%.1f", replaysSize) + " GB");
+        System.out.println("Available storage on disk: " + String.format("%.1f", availableDiskSpace) + " GB");
+
         System.out.println("Processing " + filesToProcess.size() + " file(s)");
         System.out.println("Output folder is: " + outputFolder.getAbsolutePath());
 
@@ -310,6 +331,21 @@ public class ReliveTrackMerger extends JFrame {
         } catch (Exception e) {
             System.err.println(e.getMessage());
         }
+    }
+
+    private double getTotalSizeOfSelectedReplays() {
+        long totalSizeInBytes = filesToProcess.stream()
+                .mapToLong(File::length) // Get file size in bytes
+                .sum();
+        return totalSizeInBytes / (1024.0 * 1024.0 * 1024.0); // Convert bytes to gigabytes
+    }
+
+    private double getAvailableDiskSpaceOfOutputDirectory() {
+        if (selectedOutputFolder != null) {
+            long freeSpaceInBytes = selectedOutputFolder.getFreeSpace(); // Returns free space in bytes
+            return freeSpaceInBytes / (1024.0 * 1024.0 * 1024.0); // Convert bytes to gigabytes
+        }
+        return 0.0;
     }
 
     private boolean deleteDirectory(File directoryToBeDeleted) {
