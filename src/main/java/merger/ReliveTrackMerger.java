@@ -11,6 +11,7 @@ import java.io.PrintStream;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.stream.Collectors;
 
 public class ReliveTrackMerger extends JFrame {
 
@@ -245,7 +246,7 @@ public class ReliveTrackMerger extends JFrame {
         listVideoModel.clear();
         if (selectedInputFolder != null && selectedInputFolder.isDirectory()) {
             List<File> videoFiles = RecursiveReplayFetcher.fetchUnprocessedFiles(selectedInputFolder);
-            filesToProcess = videoFiles.stream().sorted(Comparator.comparing(File::getName)).toList();
+            filesToProcess = videoFiles.stream().sorted(Comparator.comparing(File::getName)).collect(Collectors.toList());
 
             for (File videoFile : videoFiles) {
                 listVideoModel.addElement(videoFile.getName());
@@ -282,8 +283,8 @@ public class ReliveTrackMerger extends JFrame {
         }
         outputFolder.mkdirs();
 
-        var replaysSize = getTotalSizeOfSelectedReplays();
-        var availableDiskSpace = getAvailableDiskSpaceOfOutputDirectory();
+        double replaysSize = getTotalSizeOfSelectedReplays();
+        double availableDiskSpace = getAvailableDiskSpaceOfOutputDirectory();
         if (replaysSize >= availableDiskSpace) {
             JOptionPane.showMessageDialog(
                     null,
