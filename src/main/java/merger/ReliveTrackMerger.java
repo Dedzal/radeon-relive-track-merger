@@ -4,6 +4,7 @@ import com.formdev.flatlaf.FlatDarculaLaf;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.File;
 import java.io.OutputStream;
@@ -20,10 +21,14 @@ public class ReliveTrackMerger extends JFrame {
     private static final String BUTTON_OUTPUT_LABEL = "Select Output Folder";
     private static final String BUTTON_PROCESS_LABEL = "Process";
     private static final String BUTTON_PROCESS_TOOLTIP = "Please select an input folder first before processing.";
-    private static final String CHECKBOX_CLEAN_OUTPUT_FOLDER = "Clean output folder before processing";
+    private static final String CHECKBOX_CLEAN_OUTPUT_FOLDER = "Clean output folder if it exists";
     private static final String CHECKBOX_CLEAN_OUTPUT_FOLDER_TOOLTIP = "Leaving this unchecked will overwrite existing files in the output folder. Check this box to clean the output folder before processing.";
     private static final String CHECKBOX_OPEN_OUTPUT_FOLDER = "Open output folder after processing";
     private static final String CHECKBOX_OPEN_OUTPUT_FOLDER_TOOLTIP = "Automatically open the output folder after processing is complete.";
+    private static final String CHECKBOX_REPLACE_SOURCE_INSTEAD_OF_COPYING = "Replace original replays with processed replays";
+    private static final String CHECKBOX_REPLACE_SOURCE_INSTEAD_OF_COPYING_TOOLTIP = "Instead of being copied separately to an output folder, processed replays will replace the source video.";
+    private static final String CHECKBOX_DELETE_MICROPHONE_TRACKS_AFTER_PROCESSING = "Delete microphone tracks after processing";
+    private static final String CHECKBOX_DELETE_MICROPHONE_TRACKS_AFTER_PROCESSING_TOOLTIP = "Delete microphone tracks after they have been added to their replay.";
 
     private static final String OUTPUT_FOLDER_NAME = "replays_merged";
 
@@ -39,6 +44,9 @@ public class ReliveTrackMerger extends JFrame {
     private JTextField textfieldOutputFolderPath;
     private JCheckBox checkboxCleanOutputFolder;
     private JCheckBox checkboxOpenOutputFolder;
+    private JCheckBox checkboxReplaceOriginalVideoInsteadOfCopying;
+    private JCheckBox checkboxDeleteMicrophoneTracksAfterCopying;
+    private JSeparator checkboxSeparator;
     private JList<String> listVideoView;
     private DefaultListModel<String> listVideoModel;
     private JScrollPane scrollpaneVideoList;
@@ -86,6 +94,10 @@ public class ReliveTrackMerger extends JFrame {
         return button;
     }
 
+    private JSeparator createSeparator() {
+        return new JSeparator(SwingConstants.HORIZONTAL);
+    }
+
     private JCheckBox createCheckBox(String label, String tooltip) {
         JCheckBox checkBox = new JCheckBox(label);
         checkBox.setToolTipText(tooltip);
@@ -96,6 +108,7 @@ public class ReliveTrackMerger extends JFrame {
 
     private void initializeUIElements() {
         GridBagConstraints constraints = new GridBagConstraints();
+        constraints.insets = new Insets(2, 10, 2, 10);
 
         buttonSelectInputFolder = createButton(BUTTON_INPUT_LABEL, e -> selectInputFolderAction());
         constraints.gridx = 0;
@@ -143,9 +156,55 @@ public class ReliveTrackMerger extends JFrame {
         constraints.anchor = GridBagConstraints.WEST;
         contentPane.add(checkboxOpenOutputFolder, constraints);
 
-        scrollpaneVideoList = createVideoListScrollPane();
+        checkboxSeparator = createSeparator();
         constraints.gridx = 0;
         constraints.gridy = 4;
+        constraints.gridwidth = 2;
+        constraints.fill = GridBagConstraints.HORIZONTAL;
+        constraints.anchor = GridBagConstraints.WEST;
+        contentPane.add(checkboxSeparator, constraints);
+
+        checkboxReplaceOriginalVideoInsteadOfCopying = createCheckBox(CHECKBOX_REPLACE_SOURCE_INSTEAD_OF_COPYING, CHECKBOX_REPLACE_SOURCE_INSTEAD_OF_COPYING_TOOLTIP);
+        checkboxReplaceOriginalVideoInsteadOfCopying.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                buttonSelectOutputFolder.setEnabled(!checkboxReplaceOriginalVideoInsteadOfCopying.isSelected());
+                checkboxCleanOutputFolder.setEnabled(!checkboxReplaceOriginalVideoInsteadOfCopying.isSelected());
+
+                if (checkboxReplaceOriginalVideoInsteadOfCopying.isSelected()) {
+                    selectedOutputFolder = selectedInputFolder;
+                    textfieldOutputFolderPath.setText(textfieldInputFolderPath.getText());
+                    checkboxDeleteMicrophoneTracksAfterCopying.setEnabled(true);
+
+                    System.out.println("Warning: there will be no way of recovering the original replays after they have been replaced!");
+                } else {
+                    if (selectedInputFolder != null) {
+                        textfieldOutputFolderPath.setText(textfieldInputFolderPath.getText() + File.separator + OUTPUT_FOLDER_NAME);
+                    }
+                    checkboxDeleteMicrophoneTracksAfterCopying.setEnabled(false);
+                    checkboxDeleteMicrophoneTracksAfterCopying.setSelected(false);
+                }
+            }
+        });
+        constraints.gridx = 0;
+        constraints.gridy = 5;
+        constraints.gridwidth = 2;
+        constraints.fill = GridBagConstraints.VERTICAL;
+        constraints.anchor = GridBagConstraints.WEST;
+        contentPane.add(checkboxReplaceOriginalVideoInsteadOfCopying, constraints);
+
+        checkboxDeleteMicrophoneTracksAfterCopying = createCheckBox(CHECKBOX_DELETE_MICROPHONE_TRACKS_AFTER_PROCESSING, CHECKBOX_DELETE_MICROPHONE_TRACKS_AFTER_PROCESSING_TOOLTIP);
+        checkboxDeleteMicrophoneTracksAfterCopying.setEnabled(false);
+        constraints.gridx = 0;
+        constraints.gridy = 6;
+        constraints.gridwidth = 2;
+        constraints.fill = GridBagConstraints.VERTICAL;
+        constraints.anchor = GridBagConstraints.WEST;
+        contentPane.add(checkboxDeleteMicrophoneTracksAfterCopying, constraints);
+
+        scrollpaneVideoList = createVideoListScrollPane();
+        constraints.gridx = 0;
+        constraints.gridy = 7;
         constraints.gridwidth = 2;
         constraints.fill = GridBagConstraints.BOTH;
         constraints.weighty = 1.0;
@@ -153,7 +212,7 @@ public class ReliveTrackMerger extends JFrame {
 
         scrollpaneLog = createLogScrollPane();
         constraints.gridx = 0;
-        constraints.gridy = 5;
+        constraints.gridy = 8;
         constraints.gridwidth = 2;
         constraints.weighty = 1.0;
         constraints.fill = GridBagConstraints.BOTH;
@@ -161,7 +220,7 @@ public class ReliveTrackMerger extends JFrame {
 
         buttonProcess = createProcessButton();
         constraints.gridx = 0;
-        constraints.gridy = 6;
+        constraints.gridy = 9;
         constraints.gridwidth = 2; // Span the button across the entire width
         constraints.weighty = 0;
         constraints.fill = GridBagConstraints.HORIZONTAL;
@@ -217,10 +276,15 @@ public class ReliveTrackMerger extends JFrame {
 
             if (selectedOutputFolder == null) {
                 selectedOutputFolder = selectedInputFolder;
-                textfieldOutputFolderPath.setText(selectedInputFolder.getAbsolutePath() + File.separator + OUTPUT_FOLDER_NAME);
+                if (!checkboxReplaceOriginalVideoInsteadOfCopying.isSelected()) {
+                    textfieldOutputFolderPath.setText(selectedInputFolder.getAbsolutePath() + File.separator + OUTPUT_FOLDER_NAME);
+                    buttonSelectOutputFolder.setEnabled(true);
+                } else {
+                    textfieldOutputFolderPath.setText(selectedOutputFolder.getAbsolutePath());
+                    buttonSelectOutputFolder.setEnabled(false);
+                }
             }
 
-            buttonSelectOutputFolder.setEnabled(true);
             buttonProcess.setEnabled(true);
             buttonProcess.setToolTipText(null);
         } else {
@@ -257,6 +321,8 @@ public class ReliveTrackMerger extends JFrame {
     }
 
     private void processSelectedFiles() {
+        long startTime = System.currentTimeMillis();
+
         // check if ffmpeg is installed before processing is initiated just in case
         try {
             FfmpegInstaller.checkOrInstallFfmpeg();
@@ -264,10 +330,7 @@ public class ReliveTrackMerger extends JFrame {
             return;
         }
 
-        long startTime = System.currentTimeMillis();
-
-        // clean the log text area before processing
-        textareaLog.setText("");
+        cleanLogTextarea();
 
         if (filesToProcess == null || filesToProcess.isEmpty()) {
             System.out.println("No files to process");
@@ -276,12 +339,17 @@ public class ReliveTrackMerger extends JFrame {
 
         buttonProcess.setEnabled(false);
 
-        File outputFolder = new File(selectedOutputFolder, OUTPUT_FOLDER_NAME);
-        if (checkboxCleanOutputFolder.isSelected() && outputFolder.exists()) {
-            System.out.println("Cleaning output folder...");
-            deleteDirectory(outputFolder);
+        File outputFolder;
+        if (checkboxReplaceOriginalVideoInsteadOfCopying.isSelected()) {
+            outputFolder = selectedOutputFolder;
+        } else {
+            outputFolder = new File(selectedOutputFolder, OUTPUT_FOLDER_NAME);
+            if (checkboxCleanOutputFolder.isSelected() && outputFolder.exists()) {
+                System.out.println("Cleaning output folder...");
+                deleteDirectory(outputFolder);
+            }
+            outputFolder.mkdirs();
         }
-        outputFolder.mkdirs();
 
         double replaysSize = getTotalSizeOfSelectedReplays();
         double availableDiskSpace = getAvailableDiskSpaceOfOutputDirectory();
@@ -296,19 +364,19 @@ public class ReliveTrackMerger extends JFrame {
             buttonProcess.setEnabled(true);
             return;
         }
-        System.out.println("Total file size of selected replays: " + String.format("%.1f", replaysSize) + " GB");
-        System.out.println("Available storage on disk: " + String.format("%.1f", availableDiskSpace) + " GB");
 
-        System.out.println("Processing " + filesToProcess.size() + " file(s)");
-        System.out.println("Output folder is: " + outputFolder.getAbsolutePath());
-
-        System.out.println();
-        System.out.println("-----------------------------------------------------------------------------");
-        System.out.println();
+        printFileSizeInformation(replaysSize, availableDiskSpace);
+        printAmountOfFilesToProcess();
+        printOutputFolderPath(outputFolder);
+        printSeparator();
 
         CountDownLatch latch = new CountDownLatch(filesToProcess.size());
-        ReplayProcessor processor = new ReplayProcessor(outputFolder, selectedInputFolder);
-
+        ReplayProcessor processor = new ReplayProcessor(
+                outputFolder,
+                selectedInputFolder,
+                isReplaceSourceReplaysSelected(),
+                isDeleteMicrophoneTracksAfterCopyingSelected()
+        );
         filesToProcess.forEach(file -> {
             ReplayProcessingWorker worker = new ReplayProcessingWorker(file, processor, this::updateStatus, latch);
             worker.execute();
@@ -320,6 +388,37 @@ public class ReliveTrackMerger extends JFrame {
         if (checkboxOpenOutputFolder.isSelected()) {
             openOutputDirectory();
         }
+    }
+
+    private boolean isDeleteMicrophoneTracksAfterCopyingSelected() {
+        return checkboxDeleteMicrophoneTracksAfterCopying.isSelected();
+    }
+
+    private boolean isReplaceSourceReplaysSelected() {
+        return checkboxReplaceOriginalVideoInsteadOfCopying.isSelected();
+    }
+
+    private void cleanLogTextarea() {
+        textareaLog.setText("");
+    }
+
+    private static void printFileSizeInformation(double replaysSize, double availableDiskSpace) {
+        System.out.println("Total file size of selected replays: " + String.format("%.1f", replaysSize) + " GB");
+        System.out.println("Available storage on disk: " + String.format("%.1f", availableDiskSpace) + " GB");
+    }
+
+    private void printAmountOfFilesToProcess() {
+        System.out.println("Processing " + filesToProcess.size() + " file(s)");
+    }
+
+    private static void printOutputFolderPath(File outputFolder) {
+        System.out.println("Output folder is: " + outputFolder.getAbsolutePath());
+    }
+
+    private static void printSeparator() {
+        System.out.println();
+        System.out.println("-----------------------------------------------------------------------------");
+        System.out.println();
     }
 
     private void openOutputDirectory() {
