@@ -1,9 +1,13 @@
 
 # Relive Track Merger
 
-The `Relive Track Merger` is a lightweight desktop application designed to **embed microphone tracks of Radeon Relive replays into the replays themselves**, a feature that has long been present in Nvidia Shadowplay. This makes the process of having to import 2 different media onto a video editing timeline obsolete, especially if your media pool contains hundreds of replays and microphone tracks. The application uses `FFmpeg` as a CLI tool to add the microphone track to the replay. 
+The `Relive Track Merger` is a lightweight desktop application designed to **embed microphone tracks of Radeon Relive replays into the replays themselves**, a feature that has long been present in Nvidia Shadowplay. This makes the tedious process of having to import 2 different media onto a video editing timeline for each clip obsolete, especially if your media pool contains hundreds of replays and microphone tracks. The application uses `FFmpeg` as a CLI tool to add the microphone track to the replay. 
 
 ![](docs/img1.png)
+
+![](docs/img2.png)
+-
+![](docs/img3.png)
 
 ## Prerequisites
 - **Java**:  
