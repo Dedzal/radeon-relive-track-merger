@@ -1,12 +1,10 @@
 
 # Relive Track Merger
 
-The `Relive Track Merger` is a lightweight desktop application designed to automate the task of manually importing 
-separated microphone tracks of Radeon Relive replays into video editing software by **embedding the microphone audio
-track into the replay itself**, a feature that has long been present in Nvidia replays made with Shadowplay. The
-application uses `FFmpeg` as a CLI tool to add the microphone track to the replay. 
+The `Relive Track Merger` is a lightweight desktop application designed to automate the task of having to import separated microphone tracks of replays into video editing software by **embedding the microphone audio
+track into the replay itself**, a feature that has long been present in Nvidia Shadowplay. The application uses `FFmpeg` as a CLI tool to add the microphone track to the replay. 
 
-![](docs\img1.png)
+![](docs/img1.png)
 
 ## Prerequisites
 - **Java**:  
@@ -19,7 +17,7 @@ application uses `FFmpeg` as a CLI tool to add the microphone track to the repla
 ## How It Works
 
 1. Click the `Select Input Folder` button to choose the directory where your replays are located. You can choose your whole `Radeon ReLive` folder if you want to process all of your replays, or you can choose just one folder (for example: `Radeon ReLive\ArmA 3`) if you want to process replays of just one game.
-2. Click the `Select Output Folder` button to choose the directory where you want to save the processed replays. The application sets the default output location of the processed replays at `_InputFolder_\replays_merged`, but you can change it by clicking on the `Select Output Folder` button and  choosing a different location. The output folder should retain the same directory structure as the input directory, so your game replays will remain separated. So, for example, `ArmA 3` replays will be located under `replays_merged\ArmA 3` and so on.  
+2. Click the `Select Output Folder` button to choose the directory where you want to save the processed replays. The default output location of the processed replays is always set at `_InputFolder_\replays_merged`, but you can change it by clicking on the `Select Output Folder` button and choosing a different location. The output folder should retain the same directory structure as the input directory, so your game replays will remain separated. So, for example, `ArmA 3` replays will be located under `replays_merged\ArmA 3` and so on.  
    Selecting an output folder will be disabled if you choose to replace the original source replays as the input folder is the same as the output folder.
 3. Click the `Process` button to start the task of merging microphone tracks into the corresponding replay.
 
