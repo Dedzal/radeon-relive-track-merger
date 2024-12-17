@@ -1,6 +1,10 @@
 package merger;
 
 import com.formdev.flatlaf.FlatDarculaLaf;
+import merger.ffmpeg.FfmpegInstaller;
+import merger.processing.ReplayProcessingWorker;
+import merger.processing.ReplayProcessor;
+import merger.util.RecursiveReplayFetcher;
 
 import javax.swing.*;
 import java.awt.*;

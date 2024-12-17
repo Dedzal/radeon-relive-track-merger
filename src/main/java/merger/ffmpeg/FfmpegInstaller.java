@@ -1,10 +1,7 @@
-package merger;
+package merger.ffmpeg;
 
 import javax.swing.*;
 import java.io.*;
-import java.net.URL;
-import java.nio.file.Paths;
-import java.security.CodeSource;
 
 public class FfmpegInstaller {
 

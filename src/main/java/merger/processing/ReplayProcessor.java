@@ -1,4 +1,4 @@
-package merger;
+package merger.processing;
 
 import java.io.File;
 import java.io.IOException;
