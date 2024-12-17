@@ -5,7 +5,7 @@
       <element id="directory" name="META-INF">
         <element id="file-copy" path="$PROJECT_DIR$/META-INF/MANIFEST.MF" />
       </element>
-      <element id="module-output" name="radeon-relive-microphone-track-adder" />
+      <element id="module-output" name="radeon-relive-track-merger" />
       <element id="extracted-dir" path="$MAVEN_REPOSITORY$/com/formdev/flatlaf/3.5.3/flatlaf-3.5.3.jar" path-in-jar="/" />
       <element id="library" level="project" name="Maven: com.formdev:flatlaf:3.5.3" />
     </root>
