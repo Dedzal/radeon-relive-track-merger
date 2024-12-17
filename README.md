@@ -1,28 +1,36 @@
 
 # Relive Track Merger
 
-**Relive Track Merger** is a lightweight desktop application designed to simplify the process of integrating separated microphone audio tracks into Radeon Relive replays. The merged files can then be directly imported into video editing software like DaVinci Resolve, with the microphone track already embedded.
+The `Relive Track Merger` is a lightweight desktop application designed to automate the task of manually importing 
+separated microphone tracks of Radeon Relive replays into video editing software by **embedding the microphone audio
+track into the replay itself**, a feature that has long been present in Nvidia replays made with Shadowplay. The
+application uses `FFmpeg` as a CLI tool to add the microphone track to the replay. 
+
+![](docs\img1.png)
+
+## Prerequisites
+- **Java**:  
+  You need to have Java installed on your computer to launch the .jar file. You can download Java [here](https://www.java.com/download/ie_manual.jsp).
+- **FFmpeg**:  
+  FFmpeg is required to merge the replay and the microphone track. If you don't have it installed, the application will prompt you to install it for you using the [Windows Package Manager (winget)](https://learn.microsoft.com/en-us/windows/package-manager/winget).
+  Alternatively, you can manually install FFmpeg from its [official website](https://ffmpeg.org/download.html).
+
 
 ## How It Works
 
-1. **Select Input Folder**: Click the *"Select Folder"* button to choose the directory containing replays and corresponding microphone tracks. You can also select a folder containing game-specific subdirectories of replays for batch processing.
-2. **Automatic File Listing**: The application scans the specified folder and its subdirectories for eligible replay files. Replays are identified as `.mp4` files with `"_replay_"` in their filenames. Already processed replays will be skipped (replays that end in `"_merged"`).
-3. **Start Processing**: Press the *"Process"* button to begin merging the microphone tracks into the replay videos. The application provides real-time progress logs.
-4. **View Output**: The merged files are saved in an output directory while maintaining the same folder structure as the input folder.
+1. Click the `Select Input Folder` button to choose the directory where your replays are located. You can choose your whole `Radeon ReLive` folder if you want to process all of your replays, or you can choose just one folder (for example: `Radeon ReLive\ArmA 3`) if you want to process replays of just one game.
+2. Click the `Select Output Folder` button to choose the directory where you want to save the processed replays. The application sets the default output location of the processed replays at `_InputFolder_\replays_merged`, but you can change it by clicking on the `Select Output Folder` button and  choosing a different location. The output folder should retain the same directory structure as the input directory, so your game replays will remain separated. So, for example, `ArmA 3` replays will be located under `replays_merged\ArmA 3` and so on.  
+   Selecting an output folder will be disabled if you choose to replace the original source replays as the input folder is the same as the output folder.
+3. Click the `Process` button to start the task of merging microphone tracks into the corresponding replay.
 
-**Note**: A microphone track is identified as a file located in the same directory as a replay, sharing 
-the same file name as the replay but with the `.m4a` extension. If no matching microphone track is found, the replay will be copied 
-to the output directory.
 
-### Prerequisites
+**Notes**:
+  - Replays are identified as `.mp4` files with `_replay_` in their filenames. Replays that have already been processed (those whose filenames end in `_merged`) are automatically excluded.
+  - A microphone track is identified as a file located in the same directory as a replay, sharing the same file name as the replay but with the `.m4a` extension. If no matching microphone track is found, the replay will be copied to the output directory. If you choose to replace the original replays with processed ones, replays without a microphone track will be untouched.
 
-- **FFmpeg**:  
-  FFmpeg is required to merge the tracks. The application checks for FFmpeg during startup, and if it's missing, offers options to automatically install it via [Windows Package Manager (winget)](https://learn.microsoft.com/en-us/windows/package-manager/winget).  
-  Alternatively, you can manually install FFmpeg from its [official website](https://ffmpeg.org/download.html).  
-  **Note**: The application will not function without FFmpeg installed.
 
 # Disclaimer
 
-This application was created as a personal project and has been tested only my Windows 11 machine.
-It might have bugs and may not work as expected if used in unintended ways. Use it at your own risk.
-Contributions and improvements are always welcome!
+This application was created as a personal project and was meant to be used just by me and my friends.
+It might have bugs, may permanently corrupt your replays and may not work as intended.
+Use it at your own risk. Contributions and improvements are always welcome.

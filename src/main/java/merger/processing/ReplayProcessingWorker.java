@@ -1,4 +1,4 @@
-package merger;
+package merger.processing;
 
 import javax.swing.*;
 import java.io.File;
