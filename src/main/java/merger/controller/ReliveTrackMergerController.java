@@ -46,6 +46,10 @@ public class ReliveTrackMergerController {
 
             ui.enableButtonProcess();
             fetchReplaysToProcessAndUpdateView(ui);
+
+            if (filesToProcess != null && !filesToProcess.isEmpty() && outputFolder != null) {
+                printFileSizeInformation(getTotalSizeOfSelectedReplays(), getAvailableDiskSpaceOfOutputDirectory());
+            }
         }
     }
 
@@ -108,7 +112,6 @@ public class ReliveTrackMergerController {
             return;
         }
 
-        printFileSizeInformation(replaysSize, availableDiskSpace);
         printAmountOfFilesToProcess();
         printOutputFolderPath(outputFolder);
         printSeparator();
