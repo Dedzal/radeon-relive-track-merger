@@ -1,7 +1,7 @@
 <component name="ArtifactManager">
-  <artifact type="jar" name="radeon-relive-microphone-track-adder:jar">
-    <output-path>$PROJECT_DIR$/out/artifacts/radeon_relive_microphone_track_adder_jar</output-path>
-    <root id="archive" name="radeon-relive-microphone-track-adder.jar">
+  <artifact type="jar" name="radeon-relive-track-merger:jar">
+    <output-path>$PROJECT_DIR$/out/artifacts/radeon_relive_track_merger_jar</output-path>
+    <root id="archive" name="radeon-relive-track-merger.jar">
       <element id="directory" name="META-INF">
         <element id="file-copy" path="$PROJECT_DIR$/META-INF/MANIFEST.MF" />
       </element>
