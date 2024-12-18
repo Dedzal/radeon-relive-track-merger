@@ -19,19 +19,66 @@ public class ReplayProcessor {
         this.deleteMicrophoneTracks = deleteMicrophoneTracks;
     }
 
-    public void process(File videoFile) throws IOException, InterruptedException {
-        String videoName = videoFile.getName();
-        String videoNameWithoutExtension = videoName.substring(0, videoName.lastIndexOf('.'));
-        File microphoneTrack = new File(videoFile.getParent(), videoNameWithoutExtension + ".m4a");
+    public void process(File replayFile) throws IOException, InterruptedException {
+        String replayName = replayFile.getName();
+        String replayNameWithoutExtension = getFileNameWithoutExtension(replayName);
+        File microphoneTrack = new File(replayFile.getParent(), replayNameWithoutExtension + ".m4a");
+        File outputFile = prepareOutputFile(replayFile, replayNameWithoutExtension);
 
+        if (microphoneTrack.exists()) {
+            embedMicrophoneTrackToReplay(replayFile, replayName, microphoneTrack, outputFile);
+        } else {
+            handleReplayWithNoMicrophoneTrack(replayFile, replayName, outputFile);
+        }
+    }
+
+    private static String getFileNameWithoutExtension(String videoName) {
+        return videoName.substring(0, videoName.lastIndexOf('.'));
+    }
+
+    private void handleReplayWithNoMicrophoneTrack(File replayFile, String replayName, File outputFile) throws IOException {
+        if (!isReplaceSourceReplaysSelected()) {
+            System.out.println("Replay does not contain a microphone track, copying to output folder - " + replayName);
+            Files.copy(replayFile.toPath(), outputFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+        } else {
+            System.out.println("Replay does not contain a microphone track, nothing to do! - " + replayName);
+        }
+    }
+
+    private void embedMicrophoneTrackToReplay(File replayFile, String replayName, File microphoneTrack, File outputFile) throws IOException, InterruptedException {
+        System.out.println("Processing replay: " + replayName);
+        Process process = embedMicrophoneTrackToReplayAndSaveOutput(replayFile, microphoneTrack, outputFile);
+        process.waitFor();
+
+        if (isReplaceSourceReplaysSelected()) {
+            /*
+                Ffmpeg cannot change files in-place, that means we need to delete the old replay and rename it to
+                the original replay name.
+             */
+            replaceSourceReplayWithProcessedReplay(replayFile, outputFile);
+            deleteMicrophoneTrackIfSelected(microphoneTrack);
+        }
+
+        System.out.println("Replay: " + replayFile.getName() + " processed");
+    }
+
+    private void deleteMicrophoneTrackIfSelected(File microphoneTrack) {
+        if (isDeleteMicrophoneTracksSelected()) {
+            microphoneTrack.delete();
+        }
+    }
+
+    private File prepareOutputFile(File videoFile, String videoNameWithoutExtension) {
         String outputPath;
         if (isReplaceSourceReplaysSelected()) {
             outputPath = videoFile.getParent() + File.separator + videoNameWithoutExtension + "_temp.mp4";
         } else {
             outputPath = outputDirectory.getAbsolutePath();
             if (isFromSubdirectory(videoFile)) {
-                // if the replay was located in a subdirectory of the input directory, keep the same folder structure
-                // at the output location
+                /*
+                    If the replay was located in a subdirectory (input_directory/game/replay),
+                    retain the same folder structure at the output location (output_directory/game/processed_replay)
+                 */
                 outputPath = outputPath + File.separator + videoFile.getParentFile().getName();
             }
             outputPath = outputPath + File.separator + videoNameWithoutExtension + "_merged.mp4";
@@ -39,45 +86,26 @@ public class ReplayProcessor {
 
         File outputFile = new File(outputPath);
         outputFile.getParentFile().mkdirs(); // create the parent folder if it doesn't exist
-
-        if (microphoneTrack.exists()) {
-            System.out.println("Processing file: " + videoName);
-            Process process = startFfmpegAudioMergingProcess(videoFile, microphoneTrack, outputFile);
-            process.waitFor();
-
-            if (isReplaceSourceReplaysSelected()) {
-                String originalReplayPath = videoFile.getAbsolutePath();
-                videoFile.delete(); // delete original file
-                outputFile.renameTo(new File(originalReplayPath));
-
-                if (isDeleteMicrophoneTracksSelected()) {
-                    microphoneTrack.delete();
-                }
-            }
-
-            System.out.println("File: " + videoFile.getName() + " processed");
-        } else {
-            if (!isReplaceSourceReplaysSelected()) {
-                System.out.println("File does not contain a microphone track, copying: " + videoName);
-                Files.copy(videoFile.toPath(), outputFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
-            } else {
-                System.out.println("File does not contain a microphone track, nothing to do!: " + videoName);
-            }
-        }
+        return outputFile;
     }
 
-    private static Process startFfmpegAudioMergingProcess(File videoFile, File microphoneTrack, File outputFile) throws IOException {
-        Process process = new ProcessBuilder(
+    private static void replaceSourceReplayWithProcessedReplay(File videoFile, File outputFile) {
+        String originalReplayPath = videoFile.getAbsolutePath();
+        videoFile.delete(); // delete original replay
+        outputFile.renameTo(new File(originalReplayPath)); // rename new replay to the old replay
+    }
+
+    private static Process embedMicrophoneTrackToReplayAndSaveOutput(File videoFile, File microphoneTrack, File outputFile) throws IOException {
+        return new ProcessBuilder(
                 "ffmpeg",
                 "-i", videoFile.getAbsolutePath(),          // input video file
                 "-i", microphoneTrack.getAbsolutePath(),    // input microphone track
-                "-nostdin", "-y",                            // auto-yes to overwrite
+                "-nostdin", "-y",                            // auto-yes to overwrite inputs
                 "-map", "0",                                // map input video stream
                 "-map", "1",                                // map input microphone stream
                 "-c", "copy",                               // copy streams without re-encoding
-                outputFile.getAbsolutePath()                 // overwrite the original video file
+                outputFile.getAbsolutePath()                // save result to outputFile path
         ).inheritIO().start();
-        return process;
     }
 
     private boolean isReplaceSourceReplaysSelected() {
