@@ -5,11 +5,6 @@ import java.io.*;
 
 public class FfmpegInstaller {
 
-    /**
-     * Detects if ffmpeg is installed by attempting to execute the `ffmpeg -version` command.
-     *
-     * @return true if ffmpeg is installed, false otherwise
-     */
     public static boolean isFfmpegInstalled() {
         return getFfmpegVersion() != null;
     }
@@ -20,19 +15,20 @@ public class FfmpegInstaller {
                     .redirectErrorStream(true)
                     .start();
 
-            // Read the output from the process
+            // Only get the first line of the output
             BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-            String firstLine = reader.readLine(); // Read only the first line
-
-            // Close resources
+            String firstLine = reader.readLine();
             reader.close();
-            int exitCode = process.waitFor();// Wait for the process to complete
+
+            int exitCode = process.waitFor();
             if (exitCode != 0) {
+                // if the process failed, the ffmpeg command could probably not be found
                 System.out.println("Failed to get ffmpeg version. Version check returned first line: ");
                 System.out.println(firstLine);
                 return null;
             }
 
+            // if the process succeeded, the first line contains the version information of ffmpeg
             return firstLine;
         } catch (Exception e) {
             System.out.println("Failed to get ffmpeg version due to exception: " + e.getMessage());
@@ -40,20 +36,20 @@ public class FfmpegInstaller {
         }
     }
 
-    /**
-     * Installs ffmpeg using Windows Package Manager (winget) in a separate Command Prompt window.
-     */
     public static void installFfmpegUsingWinget() {
         try {
             System.out.println("Installing ffmpeg using winget in a Command Prompt with elevated privileges...");
 
+            /*
+                Start a cmd process WITH ADMIN RIGHTS to install ffmpeg. The installation can also complete without
+                using admin rights, but ffmpeg won't be added to the PATH environment variable. If the cmd process is
+                started with admin rights, the installation process automatically adds ffmpeg to the PATH.
+             */
             String command = "powershell -Command \"Start-Process cmd -Verb runAs -Wait -ArgumentList '/c winget install ffmpeg && timeout 5'\"";
-
             ProcessBuilder processBuilder = new ProcessBuilder("cmd", "/c", command);
             Process process = processBuilder.start();
 
             int exitCode = process.waitFor();
-
             if (exitCode == 0) {
                 System.out.println("FFmpeg installed successfully!");
                 JOptionPane.showMessageDialog(
@@ -87,9 +83,6 @@ public class FfmpegInstaller {
         System.exit(0);
     }
 
-    /**
-     * Checks if ffmpeg is installed, and installs it if it is missing.
-     */
     public static void checkOrInstallFfmpeg() {
         if (!isFfmpegInstalled()) {
             int choice = JOptionPane.showConfirmDialog(

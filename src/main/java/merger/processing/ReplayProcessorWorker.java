@@ -6,13 +6,13 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
 
-public class ReplayProcessingWorker extends SwingWorker<Void, String> {
+public class ReplayProcessorWorker extends SwingWorker<Void, String> {
     private final File videoFile;
     private final ReplayProcessor processor;
     private final Consumer<String> progressCallback;
     private final CountDownLatch latch;
 
-    public ReplayProcessingWorker(File videoFile, ReplayProcessor processor, Consumer<String> progressCallback, CountDownLatch latch) {
+    public ReplayProcessorWorker(File videoFile, ReplayProcessor processor, Consumer<String> progressCallback, CountDownLatch latch) {
         this.videoFile = videoFile;
         this.processor = processor;
         this.progressCallback = progressCallback;
