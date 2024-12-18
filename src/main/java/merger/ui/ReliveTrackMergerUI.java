@@ -259,19 +259,19 @@ public class ReliveTrackMergerUI extends JFrame {
         this.textFieldOutputFolderPath.setText(textFieldOutputFolderPath);
     }
 
-    public boolean isCheckboxReplaceOriginalVideoInsteadOfCopyingSelected() {
+    public boolean isReplaceOriginalReplaysSelected() {
         return checkboxReplaceOriginalVideoInsteadOfCopying.isSelected();
     }
 
-    public boolean isCheckboxCleanOutputSelected() {
+    public boolean isCleanOutputSelected() {
         return checkboxCleanOutputFolder.isSelected();
     }
 
-    public boolean isCheckboxOpenOutputFolderSelected() {
+    public boolean isOpenOutputFolderSelected() {
         return checkboxOpenOutputFolder.isSelected();
     }
 
-    public boolean isCheckboxDeleteMicrophoneTracksAfterCopyingSelected() {
+    public boolean isDeleteMicrophoneTracksSelected() {
         return checkboxDeleteMicrophoneTracksAfterCopying.isSelected();
     }
 

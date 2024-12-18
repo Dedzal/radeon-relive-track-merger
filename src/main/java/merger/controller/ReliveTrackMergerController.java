@@ -1,8 +1,8 @@
 package merger.controller;
 
 import merger.ffmpeg.FfmpegInstaller;
-import merger.processing.ReplayProcessorWorker;
 import merger.processing.ReplayProcessor;
+import merger.processing.ReplayProcessorWorker;
 import merger.ui.ReliveTrackMergerUI;
 import merger.util.ReplayUtils;
 
@@ -23,6 +23,8 @@ public class ReliveTrackMergerController {
     private List<File> filesToProcess;
 
     public void selectInputFolder(ReliveTrackMergerUI ui, File selectedInputFolder) {
+        ui.cleanLogTextarea();
+
         if (selectedInputFolder == null) {
             inputFolder = null;
             ui.cleanTextFieldInputFolderPath();
@@ -33,8 +35,20 @@ public class ReliveTrackMergerController {
             ui.setTextFieldInputFolderPath(inputFolderPath);
 
             if (outputFolder == null) {
-                outputFolder = inputFolder;
-                if (!ui.isCheckboxReplaceOriginalVideoInsteadOfCopyingSelected()) {
+                /*
+                    If no output folder has previously been selected, it is automatically set to
+                    input_folder/OUTPUT_FOLDER_NAME
+                 */
+                setInputFolderAsOutputFolder();
+
+                /*
+                    If the user chose not to replace the original replays, processed replays are put in a new folder
+                    called OUTPUT_FOLDER_NAME at the selected output directory.
+
+                    Otherwise, if the user chooses to replace the original replays with processed ones, the input
+                    folder is also the output folder. Both paths in the text fields are equal in this case.
+                 */
+                if (!ui.isReplaceOriginalReplaysSelected()) {
                     ui.setTextFieldOutputFolderPath(inputFolderPath + File.separator + OUTPUT_FOLDER_NAME);
                     ui.enableButtonSelectOutputFolder();
                 } else {
@@ -48,7 +62,7 @@ public class ReliveTrackMergerController {
             fetchReplaysToProcessAndUpdateView(ui);
 
             if (filesToProcess != null && !filesToProcess.isEmpty() && outputFolder != null) {
-                printFileSizeInformation(getTotalSizeOfSelectedReplays(), getAvailableDiskSpaceOfOutputDirectory());
+                printFileSizeInformation();
             }
         }
     }
@@ -79,49 +93,48 @@ public class ReliveTrackMergerController {
     public void processReplays(ReliveTrackMergerUI ui) {
         long startTime = System.currentTimeMillis();
 
+        ui.cleanLogTextarea();
+
         try {
             FfmpegInstaller.checkOrInstallFfmpeg();
         } catch (IllegalStateException e) {
             return;
         }
 
-        ui.cleanLogTextarea();
-
         if (filesToProcess == null || filesToProcess.isEmpty()) {
             System.out.println("No files to process");
             return;
-        }
-
-        ui.disableButtonProcess();
-
-        // if we are not replacing the original replays, we need to create the output (replays_merged) folder
-        if (!ui.isCheckboxReplaceOriginalVideoInsteadOfCopyingSelected()) {
-            this.outputFolder = new File(this.outputFolder, OUTPUT_FOLDER_NAME);
-            if (ui.isCheckboxCleanOutputSelected() && outputFolder.exists()) {
-                System.out.println("Cleaning output folder...");
-                ReplayUtils.deleteDirectory(outputFolder);
-            }
-            outputFolder.mkdirs();
         }
 
         double replaysSize = getTotalSizeOfSelectedReplays();
         double availableDiskSpace = getAvailableDiskSpaceOfOutputDirectory();
         if (replaysSize >= availableDiskSpace) {
             ui.showFileSizeWarningPane(replaysSize, availableDiskSpace);
-            ui.enableButtonProcess();
             return;
         }
 
+        ui.disableButtonProcess();
+
+        // if we are not replacing the original replays, we need to create the output (replays_merged) folder
+        if (!ui.isReplaceOriginalReplaysSelected()) {
+            this.outputFolder = new File(this.outputFolder, OUTPUT_FOLDER_NAME);
+            if (ui.isCleanOutputSelected() && outputFolder.exists()) {
+                System.out.println("Cleaning output folder...");
+                ReplayUtils.deleteDirectory(outputFolder);
+            }
+            outputFolder.mkdirs();
+        }
+
         printAmountOfFilesToProcess();
-        printOutputFolderPath(outputFolder);
+        printOutputFolderPath();
         printSeparator();
 
         CountDownLatch latch = new CountDownLatch(filesToProcess.size());
         ReplayProcessor processor = new ReplayProcessor(
                 outputFolder,
                 inputFolder,
-                ui.isCheckboxReplaceOriginalVideoInsteadOfCopyingSelected(),
-                ui.isCheckboxDeleteMicrophoneTracksAfterCopyingSelected()
+                ui.isReplaceOriginalReplaysSelected(),
+                ui.isDeleteMicrophoneTracksSelected()
         );
 
 
@@ -137,7 +150,7 @@ public class ReliveTrackMergerController {
         startFinishingLogThread(latch, startTime);
 
         ui.enableButtonProcess();
-        if (ui.isCheckboxOpenOutputFolderSelected()) {
+        if (ui.isOpenOutputFolderSelected()) {
             openOutputDirectory();
         }
 
@@ -158,20 +171,20 @@ public class ReliveTrackMergerController {
         }).start();
     }
 
-    private static void printFileSizeInformation(double replaysSize, double availableDiskSpace) {
-        System.out.println("Total file size of selected replays: " + String.format("%.1f", replaysSize) + " GB");
-        System.out.println("Available storage on disk: " + String.format("%.1f", availableDiskSpace) + " GB");
+    private void printFileSizeInformation() {
+        System.out.println("Total file size of selected replays: " + String.format("%.1f", getTotalSizeOfSelectedReplays()) + " GB");
+        System.out.println("Available storage on disk: " + String.format("%.1f", getAvailableDiskSpaceOfOutputDirectory()) + " GB");
     }
 
     private void printAmountOfFilesToProcess() {
         System.out.println("Processing " + filesToProcess.size() + " file(s)");
     }
 
-    private static void printOutputFolderPath(File outputFolder) {
+    private void printOutputFolderPath() {
         System.out.println("Output folder is: " + outputFolder.getAbsolutePath());
     }
 
-    private static void printSeparator() {
+    private void printSeparator() {
         System.out.println();
         System.out.println("-----------------------------------------------------------------------------");
         System.out.println();
@@ -180,10 +193,6 @@ public class ReliveTrackMergerController {
 
     public File getInputFolder() {
         return inputFolder;
-    }
-
-    public File getOutputFolder() {
-        return outputFolder;
     }
 
     public void setInputFolderAsOutputFolder() {
