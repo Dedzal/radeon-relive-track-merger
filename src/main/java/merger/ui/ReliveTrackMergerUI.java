@@ -36,6 +36,8 @@ public class ReliveTrackMergerUI extends JFrame {
 
     private final ReliveTrackMergerController controller;
 
+    private boolean warnedAboutReplace = false;
+
     public static void start() {
         setLookAndFeel();
         SwingUtilities.invokeLater(() -> new ReliveTrackMergerUI(new ReliveTrackMergerController()).setVisible(true));
@@ -134,7 +136,10 @@ public class ReliveTrackMergerUI extends JFrame {
                     textFieldOutputFolderPath.setText(textFieldInputFolderPath.getText());
                     checkboxDeleteMicrophoneTracksAfterCopying.setEnabled(true);
 
-                    System.out.println("Warning: there will be no way of recovering the original replays after they have been replaced!");
+                    if (!warnedAboutReplace) {
+                        System.out.println("Warning: there will be no way of recovering the original replays after they have been replaced!");
+                        warnedAboutReplace = true;
+                    }
                 } else {
                     // if deselected, set replays_merged as the default output folder and disable mic checkbox
                     if (controller.getInputFolder() != null) {
