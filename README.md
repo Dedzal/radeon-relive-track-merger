@@ -20,8 +20,8 @@ The `Relive Track Merger` is a lightweight desktop application designed to **emb
 ## How It Works
 
 1. Click the `Select Input Folder` button to choose the directory where your replays are located. You can choose your whole `Radeon ReLive` folder if you want to process all of your replays, or you can choose just one folder (for example: `Radeon ReLive\ArmA 3`) if you want to process replays of just one game.
-2. Click the `Select Output Folder` button to choose the directory where you want to save the processed replays. The output location of the processed replays is always set at `INPUT_FOLDER\replays_merged` by default. The output folder should retain the same directory structure as the input directory, so your game replays will remain separated. So, for example, `ArmA 3` replays will be located under `replays_merged\ArmA 3` and so on.  
-   Selecting an output folder will be disabled if you choose to replace the original source replays as the input folder is the same as the output folder.
+2. Click the `Select Output Folder` button to choose the directory where you want to save the processed replays. The output location is set to `INPUT_FOLDER\replays_merged` by default. The output folder should retain the same directory structure as the input directory, so your game replays will remain separated. So, for example, `ArmA 3` replays will be located under `replays_merged\ArmA 3` and so on.  
+   Selecting an output folder will be disabled if you choose to replace the original source replays with processed ones at their current location.
 3. Click the `Process` button to start the task of merging microphone tracks into the corresponding replay.
 
 
