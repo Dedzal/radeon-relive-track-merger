@@ -11,7 +11,7 @@ The `Relive Track Merger` is a lightweight desktop application designed to **emb
 
 ## Prerequisites
 - **Java**:  
-  You need Java installed on your computer in order to to launch the .jar file. You can download Java [here](https://www.java.com/download/ie_manual.jsp).
+  You need Java installed on your computer in order to launch the .jar file. You can download Java [here](https://www.java.com/download/ie_manual.jsp).
 - **FFmpeg**:  
   FFmpeg handles the core task of adding the microphone track to the replay. If you don't have it installed, you will be asked if you want to install it automatically using the [Windows Package Manager (winget)](https://learn.microsoft.com/en-us/windows/package-manager/winget) after the start of the application. If you confirm, a cmd window will open up with the installation process.
   Alternatively, you can manually install FFmpeg from its [official website](https://ffmpeg.org/download.html).

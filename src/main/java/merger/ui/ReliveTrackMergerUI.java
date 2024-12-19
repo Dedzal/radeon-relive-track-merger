@@ -39,7 +39,7 @@ public class ReliveTrackMergerUI extends JFrame {
     private boolean warnedAboutReplace = false;
 
     public static void start() {
-        setLookAndFeel();
+        FlatDarculaLaf.setup();
         SwingUtilities.invokeLater(() -> new ReliveTrackMergerUI(new ReliveTrackMergerController()).setVisible(true));
         FfmpegInstaller.checkOrInstallFfmpeg();
     }
@@ -353,11 +353,4 @@ public class ReliveTrackMergerUI extends JFrame {
         );
     }
 
-    private static void setLookAndFeel() {
-        try {
-            UIManager.setLookAndFeel(new FlatDarculaLaf());
-        } catch (UnsupportedLookAndFeelException e) {
-            e.printStackTrace();
-        }
-    }
 }
