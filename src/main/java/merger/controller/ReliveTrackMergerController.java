@@ -22,6 +22,10 @@ public class ReliveTrackMergerController {
     private File outputFolder;
     private List<File> filesToProcess;
 
+    private volatile boolean processingCancelled = false;
+    private List<ReplayProcessorWorker> workers;
+    private CountDownLatch latch;
+
     public void selectInputFolder(ReliveTrackMergerUI ui, File selectedInputFolder) {
         ui.cleanLogTextarea();
 
@@ -91,8 +95,9 @@ public class ReliveTrackMergerController {
     }
 
     public void processReplays(ReliveTrackMergerUI ui) {
-        long startTime = System.currentTimeMillis();
+        processingCancelled = false;
 
+        long startTime = System.currentTimeMillis();
         ui.cleanLogTextarea();
 
         try {
@@ -113,11 +118,13 @@ public class ReliveTrackMergerController {
             return;
         }
 
-        ui.disableButtonProcess();
-
         // if we are not replacing the original replays, we need to create the output (replays_merged) folder
         if (!ui.isReplaceOriginalReplaysSelected()) {
-            this.outputFolder = new File(this.outputFolder, OUTPUT_FOLDER_NAME);
+            // this check is to avoid chaining if the process button is clicked multiple times in succession
+            if (this.outputFolder != null && !this.outputFolder.getAbsolutePath().endsWith(OUTPUT_FOLDER_NAME)) {
+                this.outputFolder = new File(this.outputFolder, OUTPUT_FOLDER_NAME);
+            }
+
             if (ui.isCleanOutputSelected() && outputFolder.exists()) {
                 System.out.println("Cleaning output folder...");
                 ReplayUtils.deleteDirectory(outputFolder);
@@ -129,7 +136,7 @@ public class ReliveTrackMergerController {
         printOutputFolderPath();
         printSeparator();
 
-        CountDownLatch latch = new CountDownLatch(filesToProcess.size());
+        latch = new CountDownLatch(filesToProcess.size());
         ReplayProcessor processor = new ReplayProcessor(
                 outputFolder,
                 inputFolder,
@@ -137,33 +144,55 @@ public class ReliveTrackMergerController {
                 ui.isDeleteMicrophoneTracksSelected()
         );
 
+        workers = filesToProcess.stream().map(file -> new ReplayProcessorWorker(
+                file,
+                processor,
+                ui::updateReplayStatusInList,
+                latch)
+        ).collect(Collectors.toList());
 
-        filesToProcess.forEach(file -> {
-            ReplayProcessorWorker worker = new ReplayProcessorWorker(
-                    file,
-                    processor,
-                    ui::updateReplayStatusInList,
-                    latch);
+        for (ReplayProcessorWorker worker : workers) {
             worker.execute();
-        });
+        }
 
-        startFinishingLogThread(latch, startTime);
-
-        ui.enableButtonProcess();
+        logResultAndResetProcessButton(this, latch, startTime, ui);
         if (ui.isOpenOutputFolderSelected()) {
             openOutputDirectory();
         }
 
     }
 
-    private static void startFinishingLogThread(CountDownLatch latch, long startTime) {
+    public void cancelProcessing() {
+        if (workers != null && !workers.isEmpty()) {
+            System.out.println("Cancelling replay processing...");
+
+            processingCancelled = true;
+            for (ReplayProcessorWorker worker : workers) {
+                worker.cancel(true);
+            }
+            countdownLatchToZero(latch);
+        }
+    }
+
+    private void countdownLatchToZero(CountDownLatch latch) {
+        while (latch.getCount() > 0) {
+            latch.countDown();
+        }
+    }
+
+    private static void logResultAndResetProcessButton(ReliveTrackMergerController controller, CountDownLatch latch, long startTime, ReliveTrackMergerUI ui) {
         new Thread(() -> {
             try {
                 latch.await(); // Wait until all workers finish
                 SwingUtilities.invokeLater(() -> {
-                    System.out.println();
-                    System.out.println("Done!");
-                    System.out.println("Processing took a total of " + (System.currentTimeMillis() - startTime) / 1000.0 + " seconds");
+                    if (controller.isProcessingCancelled()) {
+                        System.out.println("Replay processing stopped");
+                    } else {
+                        System.out.println();
+                        System.out.println("Done!");
+                        System.out.println("Processing took a total of " + (System.currentTimeMillis() - startTime) / 1000.0 + " seconds");
+                    }
+                    ui.setButtonProcessToInitial();
                 });
             } catch (InterruptedException e) {
                 System.err.println("Processing was interrupted!");
@@ -190,6 +219,9 @@ public class ReliveTrackMergerController {
         System.out.println();
     }
 
+    public boolean isProcessingCancelled() {
+        return processingCancelled;
+    }
 
     public File getInputFolder() {
         return inputFolder;

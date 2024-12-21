@@ -36,11 +36,16 @@ public class ReplayProcessorWorker extends SwingWorker<Void, String> {
     @Override
     protected void done() {
         try {
-            get(); // handle exceptions
-            publish("✅ " + videoFile.getName());
+            if (isCancelled()) {
+                publish("⏹️ " + videoFile.getName());
+            } else {
+                get();
+                publish("✅ " + videoFile.getName());
+            }
         } catch (Exception e) {
             publish("❌ " + videoFile.getName());
+        } finally {
+            latch.countDown();
         }
-        latch.countDown();
     }
 }

@@ -9,6 +9,7 @@ public class UIConstants {
     static final String BUTTON_OUTPUT_LABEL = "Select Output Folder";
     static final String BUTTON_PROCESS_LABEL = "Process";
     static final String BUTTON_PROCESS_TOOLTIP = "Please select an input folder first before processing.";
+    static final String BUTTON_CANCEL_LABEL = "Cancel";
     static final String CHECKBOX_CLEAN_OUTPUT_FOLDER = "Clean output folder if it exists";
     static final String CHECKBOX_CLEAN_OUTPUT_FOLDER_TOOLTIP = "Leaving this unchecked will overwrite existing files in the output folder. Check this box to clean the output folder before processing.";
     static final String CHECKBOX_OPEN_OUTPUT_FOLDER = "Open output folder after processing";

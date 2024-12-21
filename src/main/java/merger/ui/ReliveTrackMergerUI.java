@@ -247,6 +247,38 @@ public class ReliveTrackMergerUI extends JFrame {
         buttonProcess.setToolTipText(null);
     }
 
+    private ActionListener cancelProcessingAction() {
+        return e -> {
+            controller.cancelProcessing();
+            setButtonProcessToInitial();
+        };
+    }
+
+    public void setButtonProcessToInitial() {
+        buttonProcess.setText(BUTTON_PROCESS_LABEL);
+        clearActionListenersAndSetNewAction(buttonProcess, startProcessingAction());
+    }
+
+    private ActionListener startProcessingAction() {
+        return e -> {
+            controller.processReplays(this);
+            setButtonProcessToCancel();
+        };
+    }
+
+    public void setButtonProcessToCancel() {
+        buttonProcess.setText(BUTTON_CANCEL_LABEL);
+        clearActionListenersAndSetNewAction(buttonProcess, cancelProcessingAction());
+    }
+
+    private void clearActionListenersAndSetNewAction(JButton button, ActionListener actionListener) {
+        for (ActionListener listener : button.getActionListeners()) {
+            button.removeActionListener(listener);
+        }
+
+        button.addActionListener(actionListener);
+    }
+
     public void cleanTextFieldInputFolderPath() {
         textFieldInputFolderPath.setText("");
     }
@@ -308,7 +340,7 @@ public class ReliveTrackMergerUI extends JFrame {
     }
 
     private JButton createProcessButton() {
-        JButton button = createButton(BUTTON_PROCESS_LABEL, e -> controller.processReplays(this));
+        JButton button = createButton(BUTTON_PROCESS_LABEL, startProcessingAction());
         button.setEnabled(false);
         button.setToolTipText(BUTTON_PROCESS_TOOLTIP);
         return button;
