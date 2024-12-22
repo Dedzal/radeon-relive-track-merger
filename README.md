@@ -47,6 +47,7 @@ ensure the original replays remain intact and are not replaced by potentially co
    Define where the processed files will be saved. By default, the output directory is set to
    `INPUT_FOLDER\replays_merged`, and the directory structure is preserved.
    If you prefer to overwrite the original files, the output folder option will be disabled.
+
 3. **Process Files** <br>
    Click the `Process` button to start merging microphone tracks into corresponding replays. Files without a matching
    microphone track will either be copied or left untouched based on your settings.
