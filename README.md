@@ -2,15 +2,14 @@
 
 The `Relive Track Merger` is a tool designed to **embed microphone tracks into Radeon Relive replays**.
 By automating this process, it eliminates the hassle of managing separate media files during video editing,
-saving time and effort — especially when handling large collections of replays.
-The application uses `FFmpeg` as a CLI tool to add the microphone track to the replay.
+especially when handling large collections of replays. The application uses `FFmpeg` as a CLI tool to add the microphone track to the replay.
 
 The tool offers two ways of processing: 
 
-1. **Copying files to a separate output folder** (`replays_merged`), preserving the original replays
-2. **Replacing the original files** directly in their current location
+1. **Saving processed replays to a separate output folder** (`replays_merged`), preserving the original replays
+2. **Replacing the original replays** with processed ones directly in their current location
 
-Even if disk space is an issue, copying files to the `replays_merged` folder is highly recommended to
+Choosing to process the replays to a separate output folder is highly recommended to
 ensure the original replays remain intact and are not replaced by potentially corrupt files.
 
 
@@ -44,12 +43,12 @@ ensure the original replays remain intact and are not replaced by potentially co
    `Radeon Relive\ArmA 3`) or the entire `Radeon Relive` directory to process all replays.
 
 2. **Select Output Folder** <br>
-   Define where the processed files will be saved. By default, the output directory is set to
-   `INPUT_FOLDER\replays_merged`, and the directory structure is preserved.
+   Define where the processed replays will be saved. By default, the output directory is set to
+   `INPUT_FOLDER\replays_merged`. The directory structure of the output folder will remain identical to the input folder, meaning that your processed replays will be separated by game.
    If you prefer to overwrite the original files, the output folder option will be disabled.
 
 3. **Process Files** <br>
-   Click the `Process` button to start merging microphone tracks into corresponding replays. Files without a matching
+   Click the `Process` button to start embedding microphone tracks into corresponding replays. Files without a matching
    microphone track will either be copied or left untouched based on your settings.
 
 **File Identification**:
