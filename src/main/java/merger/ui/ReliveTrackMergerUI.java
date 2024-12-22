@@ -8,6 +8,8 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.io.File;
 import java.io.OutputStream;
 import java.io.PrintStream;
@@ -58,6 +60,7 @@ public class ReliveTrackMergerUI extends JFrame {
         setTitle(APP_TITLE);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setPreferredSize(APP_WINDOW_SIZE);
+        setIconImage(APP_ICON);
     }
 
     private void initializeContentPane() {
@@ -336,6 +339,19 @@ public class ReliveTrackMergerUI extends JFrame {
         listVideoModel = new DefaultListModel<>();
         listVideoView = new JList<>(listVideoModel);
         listVideoView.setFocusable(false);
+        listVideoView.addMouseListener(new MouseAdapter() {
+            public void mouseClicked(MouseEvent e) {
+                JList<String> list = (JList) e.getSource();
+                if (e.getClickCount() == 2) {
+                    int i = list.locationToIndex(e.getPoint());
+                    if (i != -1) {
+                        String replayName = listVideoView.getModel().getElementAt(i);
+                        controller.openReplay(replayName);
+                    }
+                }
+            }
+        });
+
         return new JScrollPane(listVideoView);
     }
 

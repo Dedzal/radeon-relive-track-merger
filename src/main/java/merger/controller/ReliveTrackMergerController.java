@@ -247,8 +247,20 @@ public class ReliveTrackMergerController {
     }
 
     private void openOutputDirectory() {
+        openFile(outputFolder);
+    }
+
+    public void openReplay(String replayName) {
+        if (replayName != null && !filesToProcess.isEmpty()) {
+            filesToProcess.stream()
+                    .filter(replay -> replay.getName().equals(replayName))
+                    .findFirst().ifPresent(this::openFile);
+        }
+    }
+
+    private void openFile(File file) {
         try {
-            Desktop.getDesktop().open(outputFolder);
+            Desktop.getDesktop().open(file);
         } catch (Exception e) {
             System.err.println(e.getMessage());
         }

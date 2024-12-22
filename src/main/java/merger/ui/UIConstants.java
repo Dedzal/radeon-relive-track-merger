@@ -1,5 +1,6 @@
 package merger.ui;
 
+import javax.swing.*;
 import java.awt.*;
 
 public class UIConstants {
@@ -21,5 +22,7 @@ public class UIConstants {
 
     static final Dimension APP_WINDOW_SIZE = new Dimension(600, 600);
     static final Dimension DEFAULT_SELECT_BUTTON_SIZE = new Dimension(150, 25);
+    static final Image APP_ICON = new ImageIcon(UIConstants.class.getClassLoader().getResource("play-button.png")).getImage();
+
 
 }
