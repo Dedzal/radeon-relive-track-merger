@@ -252,7 +252,7 @@ public class ReliveTrackMergerUI extends JFrame {
 
     private ActionListener cancelProcessingAction() {
         return e -> {
-            controller.cancelProcessing();
+            controller.cancelReplayProcessing();
             setButtonProcessToInitial();
         };
     }
@@ -264,7 +264,7 @@ public class ReliveTrackMergerUI extends JFrame {
 
     private ActionListener startProcessingAction() {
         return e -> {
-            controller.processReplays(this);
+            controller.executeReplayProcessing(this);
             setButtonProcessToCancel();
         };
     }
@@ -389,16 +389,6 @@ public class ReliveTrackMergerUI extends JFrame {
         PrintStream printStream = new PrintStream(textAreaStream, true);
         System.setOut(printStream);
         System.setErr(printStream);
-    }
-
-    public void showFileSizeWarningPane(double totalSizeOfReplays, double availableDiskSpace) {
-        JOptionPane.showMessageDialog(
-                null,
-                "The total size of the selected files (" + String.format("%.1f", totalSizeOfReplays) + " GB) exceeds the available disk space (" + String.format("%.1f", availableDiskSpace) + " GB).\n\n" +
-                        "Please free up some space on the target disk or select a different output directory.",
-                "Not Enough Available Disk Space",
-                JOptionPane.WARNING_MESSAGE
-        );
     }
 
 }

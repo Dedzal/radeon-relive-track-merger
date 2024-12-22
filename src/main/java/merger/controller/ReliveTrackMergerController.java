@@ -62,12 +62,9 @@ public class ReliveTrackMergerController {
 
             }
 
-            ui.enableButtonProcess();
-            fetchReplaysToProcessAndUpdateView(ui);
-
-            if (filesToProcess != null && !filesToProcess.isEmpty() && outputFolder != null) {
-                printFileSizeInformation();
-            }
+            updateReplayListAndView(ui);
+            validateReplaysToProcessFound(ui);
+            validateEnoughStorageAvailableForProcessing(ui);
         }
     }
 
@@ -75,10 +72,12 @@ public class ReliveTrackMergerController {
         if (selectedOutputFolder != null) {
             outputFolder = selectedOutputFolder;
             ui.setTextFieldOutputFolderPath(outputFolder.getAbsolutePath() + File.separator + OUTPUT_FOLDER_NAME);
+
+            validateEnoughStorageAvailableForProcessing(ui);
         }
     }
 
-    private void fetchReplaysToProcessAndUpdateView(ReliveTrackMergerUI ui) {
+    private void updateReplayListAndView(ReliveTrackMergerUI ui) {
         ui.clearVideoList();
         if (inputFolder != null && inputFolder.isDirectory()) {
             List<File> unprocessedReplays = ReplayUtils.findUnprocessedReplays(inputFolder);
@@ -94,7 +93,23 @@ public class ReliveTrackMergerController {
         }
     }
 
-    public void processReplays(ReliveTrackMergerUI ui) {
+    private void validateReplaysToProcessFound(ReliveTrackMergerUI ui) {
+        if (filesToProcess == null || filesToProcess.isEmpty()) {
+            System.out.println("No replays found in selected directory or any of its subdirectories");
+            ui.disableButtonProcess();
+        } else {
+            ui.enableButtonProcess();
+        }
+    }
+
+
+    private void validateEnoughStorageAvailableForProcessing(ReliveTrackMergerUI ui) {
+        ui.cleanLogTextarea();
+        displayFileSizeInfo();
+        validateStorageSpaceAtOutputDisk(ui);
+    }
+
+    public void executeReplayProcessing(ReliveTrackMergerUI ui) {
         processingCancelled = false;
 
         long startTime = System.currentTimeMillis();
@@ -103,18 +118,7 @@ public class ReliveTrackMergerController {
         try {
             FfmpegInstaller.checkOrInstallFfmpeg();
         } catch (IllegalStateException e) {
-            return;
-        }
-
-        if (filesToProcess == null || filesToProcess.isEmpty()) {
-            System.out.println("No files to process");
-            return;
-        }
-
-        double replaysSize = getTotalSizeOfSelectedReplays();
-        double availableDiskSpace = getAvailableDiskSpaceOfOutputDirectory();
-        if (replaysSize >= availableDiskSpace) {
-            ui.showFileSizeWarningPane(replaysSize, availableDiskSpace);
+            ui.setButtonProcessToInitial();
             return;
         }
 
@@ -155,14 +159,24 @@ public class ReliveTrackMergerController {
             worker.execute();
         }
 
-        logResultAndResetProcessButton(this, latch, startTime, ui);
-        if (ui.isOpenOutputFolderSelected()) {
-            openOutputDirectory();
-        }
-
+        finalizeProcessing(this, latch, startTime, ui);
     }
 
-    public void cancelProcessing() {
+    private void validateStorageSpaceAtOutputDisk(ReliveTrackMergerUI ui) {
+        if (inputFolder != null && outputFolder != null && filesToProcess != null && !filesToProcess.isEmpty()) {
+            double totalSizeOfReplays = getTotalSizeOfSelectedReplays();
+            double availableDiskSpace = getAvailableDiskSpaceOfOutputDirectory();
+            if (totalSizeOfReplays >= availableDiskSpace) {
+                System.out.println("The total file size of the selected replays (" + String.format("%.1f", totalSizeOfReplays) + " GB) exceeds the available disk space (" + String.format("%.1f", availableDiskSpace) + " GB).");
+                System.out.println("Please free up some space on the target disk or select a different output directory.");
+                ui.disableButtonProcess();
+            } else {
+                ui.enableButtonProcess();
+            }
+        }
+    }
+
+    public void cancelReplayProcessing() {
         if (workers != null && !workers.isEmpty()) {
             System.out.println("Cancelling replay processing...");
 
@@ -170,39 +184,50 @@ public class ReliveTrackMergerController {
             for (ReplayProcessorWorker worker : workers) {
                 worker.cancel(true);
             }
-            countdownLatchToZero(latch);
+            releaseLatch(latch);
         }
     }
 
-    private void countdownLatchToZero(CountDownLatch latch) {
+    private void releaseLatch(CountDownLatch latch) {
         while (latch.getCount() > 0) {
             latch.countDown();
         }
     }
 
-    private static void logResultAndResetProcessButton(ReliveTrackMergerController controller, CountDownLatch latch, long startTime, ReliveTrackMergerUI ui) {
+    private static void finalizeProcessing(ReliveTrackMergerController controller, CountDownLatch latch, long startTime, ReliveTrackMergerUI ui) {
         new Thread(() -> {
             try {
                 latch.await(); // Wait until all workers finish
                 SwingUtilities.invokeLater(() -> {
-                    if (controller.isProcessingCancelled()) {
-                        System.out.println("Replay processing stopped");
-                    } else {
-                        System.out.println();
-                        System.out.println("Done!");
-                        System.out.println("Processing took a total of " + (System.currentTimeMillis() - startTime) / 1000.0 + " seconds");
-                    }
+                    logFinalProcessingResult(controller, startTime);
                     ui.setButtonProcessToInitial();
                 });
+
+                if (ui.isOpenOutputFolderSelected()) {
+                    controller.openOutputDirectory();
+                }
+
             } catch (InterruptedException e) {
                 System.err.println("Processing was interrupted!");
             }
         }).start();
     }
 
-    private void printFileSizeInformation() {
-        System.out.println("Total file size of selected replays: " + String.format("%.1f", getTotalSizeOfSelectedReplays()) + " GB");
-        System.out.println("Available storage on disk: " + String.format("%.1f", getAvailableDiskSpaceOfOutputDirectory()) + " GB");
+    private static void logFinalProcessingResult(ReliveTrackMergerController controller, long startTime) {
+        if (controller.isProcessingCancelled()) {
+            System.out.println("Replay processing stopped");
+        } else {
+            System.out.println();
+            System.out.println("Done!");
+            System.out.println("Processing took a total of " + (System.currentTimeMillis() - startTime) / 1000.0 + " seconds");
+        }
+    }
+
+    private void displayFileSizeInfo() {
+        if (inputFolder != null && outputFolder != null && filesToProcess != null && !filesToProcess.isEmpty()) {
+            System.out.println("Total file size of selected replays: " + String.format("%.1f", getTotalSizeOfSelectedReplays()) + " GB");
+            System.out.println("Available storage on disk: " + String.format("%.1f", getAvailableDiskSpaceOfOutputDirectory()) + " GB");
+        }
     }
 
     private void printAmountOfFilesToProcess() {
