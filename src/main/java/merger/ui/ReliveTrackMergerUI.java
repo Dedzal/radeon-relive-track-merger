@@ -225,6 +225,7 @@ public class ReliveTrackMergerUI extends JFrame {
     private JTextField createNonEditableTextField() {
         JTextField textField = new JTextField();
         textField.setEditable(false);
+        textField.setFocusable(false);
         return textField;
     }
 
@@ -253,11 +254,11 @@ public class ReliveTrackMergerUI extends JFrame {
     private ActionListener cancelProcessingAction() {
         return e -> {
             controller.cancelReplayProcessing();
-            setButtonProcessToInitial();
+            setButtonProcessToInitialState();
         };
     }
 
-    public void setButtonProcessToInitial() {
+    public void setButtonProcessToInitialState() {
         buttonProcess.setText(BUTTON_PROCESS_LABEL);
         clearActionListenersAndSetNewAction(buttonProcess, startProcessingAction());
     }
@@ -265,11 +266,11 @@ public class ReliveTrackMergerUI extends JFrame {
     private ActionListener startProcessingAction() {
         return e -> {
             controller.executeReplayProcessing(this);
-            setButtonProcessToCancel();
+            setButtonProcessToCancelState();
         };
     }
 
-    public void setButtonProcessToCancel() {
+    public void setButtonProcessToCancelState() {
         buttonProcess.setText(BUTTON_CANCEL_LABEL);
         clearActionListenersAndSetNewAction(buttonProcess, cancelProcessingAction());
     }

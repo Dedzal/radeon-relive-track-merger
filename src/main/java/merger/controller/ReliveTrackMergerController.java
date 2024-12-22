@@ -11,7 +11,9 @@ import java.awt.*;
 import java.io.File;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 public class ReliveTrackMergerController {
@@ -22,8 +24,8 @@ public class ReliveTrackMergerController {
     private File outputFolder;
     private List<File> filesToProcess;
 
-    private volatile boolean processingCancelled = false;
-    private List<ReplayProcessorWorker> workers;
+    private volatile AtomicBoolean processingCancelled = new AtomicBoolean(false);
+    private volatile List<ReplayProcessorWorker> workers = new CopyOnWriteArrayList<>();
     private CountDownLatch latch;
 
     public void selectInputFolder(ReliveTrackMergerUI ui, File selectedInputFolder) {
@@ -52,7 +54,7 @@ public class ReliveTrackMergerController {
                     Otherwise, if the user chooses to replace the original replays with processed ones, the input
                     folder is also the output folder. Both paths in the text fields are equal in this case.
                  */
-                if (!ui.isReplaceOriginalReplaysSelected()) {
+                if (isProcessingWithOutputFolderCreation(ui)) {
                     ui.setTextFieldOutputFolderPath(inputFolderPath + File.separator + OUTPUT_FOLDER_NAME);
                     ui.enableButtonSelectOutputFolder();
                 } else {
@@ -66,6 +68,10 @@ public class ReliveTrackMergerController {
             validateReplaysToProcessFound(ui);
             validateEnoughStorageAvailableForProcessing(ui);
         }
+    }
+
+    private static boolean isProcessingWithOutputFolderCreation(ReliveTrackMergerUI ui) {
+        return !ui.isReplaceOriginalReplaysSelected();
     }
 
     public void selectOutputFolder(ReliveTrackMergerUI ui, File selectedOutputFolder) {
@@ -110,7 +116,7 @@ public class ReliveTrackMergerController {
     }
 
     public void executeReplayProcessing(ReliveTrackMergerUI ui) {
-        processingCancelled = false;
+        processingCancelled.set(false);
 
         long startTime = System.currentTimeMillis();
         ui.cleanLogTextarea();
@@ -118,22 +124,25 @@ public class ReliveTrackMergerController {
         try {
             FfmpegInstaller.checkOrInstallFfmpeg();
         } catch (IllegalStateException e) {
-            ui.setButtonProcessToInitial();
+            System.err.println("FFmpeg installation failed: " + e.getMessage());
+            ui.setButtonProcessToInitialState();
             return;
         }
 
         // if we are not replacing the original replays, we need to create the output (replays_merged) folder
-        if (!ui.isReplaceOriginalReplaysSelected()) {
-            // this check is to avoid chaining if the process button is clicked multiple times in succession
-            if (this.outputFolder != null && !this.outputFolder.getAbsolutePath().endsWith(OUTPUT_FOLDER_NAME)) {
-                this.outputFolder = new File(this.outputFolder, OUTPUT_FOLDER_NAME);
+        if (isProcessingWithOutputFolderCreation(ui) && outputFolder != null) {
+            if (!outputFolder.getAbsolutePath().endsWith(OUTPUT_FOLDER_NAME)) {
+                outputFolder = new File(outputFolder, OUTPUT_FOLDER_NAME);
             }
-
             if (ui.isCleanOutputSelected() && outputFolder.exists()) {
                 System.out.println("Cleaning output folder...");
                 ReplayUtils.deleteDirectory(outputFolder);
             }
-            outputFolder.mkdirs();
+            if (!outputFolder.exists() && !outputFolder.mkdirs()) {
+                System.err.println("Failed to create output folder.");
+                ui.setButtonProcessToInitialState();
+                return;
+            }
         }
 
         printAmountOfFilesToProcess();
@@ -153,7 +162,7 @@ public class ReliveTrackMergerController {
                 processor,
                 ui::updateReplayStatusInList,
                 latch)
-        ).collect(Collectors.toList());
+        ).collect(Collectors.toCollection(CopyOnWriteArrayList::new));
 
         for (ReplayProcessorWorker worker : workers) {
             worker.execute();
@@ -180,7 +189,7 @@ public class ReliveTrackMergerController {
         if (workers != null && !workers.isEmpty()) {
             System.out.println("Cancelling replay processing...");
 
-            processingCancelled = true;
+            processingCancelled.set(true);
             for (ReplayProcessorWorker worker : workers) {
                 worker.cancel(true);
             }
@@ -200,7 +209,7 @@ public class ReliveTrackMergerController {
                 latch.await(); // Wait until all workers finish
                 SwingUtilities.invokeLater(() -> {
                     logFinalProcessingResult(controller, startTime);
-                    ui.setButtonProcessToInitial();
+                    ui.setButtonProcessToInitialState();
                 });
 
                 if (ui.isOpenOutputFolderSelected()) {
@@ -245,7 +254,7 @@ public class ReliveTrackMergerController {
     }
 
     public boolean isProcessingCancelled() {
-        return processingCancelled;
+        return processingCancelled.get();
     }
 
     public File getInputFolder() {
@@ -272,7 +281,11 @@ public class ReliveTrackMergerController {
     }
 
     private void openOutputDirectory() {
-        openFile(outputFolder);
+        if (outputFolder != null && outputFolder.exists()) {
+            openFile(outputFolder);
+        } else {
+            System.err.println("Output folder does not exist or is not set.");
+        }
     }
 
     public void openReplay(String replayName) {
@@ -284,10 +297,18 @@ public class ReliveTrackMergerController {
     }
 
     private void openFile(File file) {
+        if (file == null || !file.exists()) {
+            System.err.println("File does not exist or is null: " + file);
+            return;
+        }
         try {
+            if (!Desktop.isDesktopSupported()) {
+                System.err.println("Desktop API is not supported on this system.");
+                return;
+            }
             Desktop.getDesktop().open(file);
         } catch (Exception e) {
-            System.err.println(e.getMessage());
+            System.err.println("Failed to open file: " + e.getMessage());
         }
     }
 }
