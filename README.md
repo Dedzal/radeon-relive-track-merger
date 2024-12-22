@@ -24,7 +24,7 @@ ensure the original replays remain intact and are not replaced by potentially co
 
 - **Java**:  
   Required to launch the .jar file. You can download Java [here](https://www.java.com/download/ie_manual.jsp). <br>
-  To check if Java is installed, run:
+  To check if Java is installed, open cmd and run:
     ```bash
       java -version
     ```
