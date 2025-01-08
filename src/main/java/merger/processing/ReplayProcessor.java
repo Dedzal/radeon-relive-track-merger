@@ -89,10 +89,10 @@ public class ReplayProcessor {
         return outputFile;
     }
 
-    private static void replaceSourceReplayWithProcessedReplay(File videoFile, File outputFile) {
-        String originalReplayPath = videoFile.getAbsolutePath();
-        videoFile.delete(); // delete original replay
-        outputFile.renameTo(new File(originalReplayPath)); // rename new replay to the old replay
+    private static void replaceSourceReplayWithProcessedReplay(File unprocessedReplay, File processedReplay) {
+        String unprocessedReplayPath = unprocessedReplay.getAbsolutePath();
+        unprocessedReplay.delete(); // delete original replay
+        processedReplay.renameTo(new File(unprocessedReplayPath)); // rename new replay to the old replay
     }
 
     private static Process embedMicrophoneTrackToReplayAndSaveOutput(File videoFile, File microphoneTrack, File outputFile) throws IOException {
