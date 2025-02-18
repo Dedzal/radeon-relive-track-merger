@@ -1,13 +1,14 @@
 <component name="ArtifactManager">
-  <artifact type="jar" name="radeon-relive-track-merger:jar">
-    <output-path>$PROJECT_DIR$/out/artifacts/radeon_relive_track_merger_jar</output-path>
-    <root id="archive" name="radeon-relive-track-merger.jar">
+  <artifact type="jar" name="ReliveTrackMerger:jar">
+    <output-path>$PROJECT_DIR$/out/artifacts/ReliveTrackMerger_jar</output-path>
+    <root id="archive" name="ReliveTrackMerger.jar">
       <element id="directory" name="META-INF">
         <element id="file-copy" path="$PROJECT_DIR$/META-INF/MANIFEST.MF" />
       </element>
       <element id="module-output" name="radeon-relive-track-merger" />
       <element id="extracted-dir" path="$MAVEN_REPOSITORY$/com/formdev/flatlaf/3.5.3/flatlaf-3.5.3.jar" path-in-jar="/" />
       <element id="library" level="project" name="Maven: com.formdev:flatlaf:3.5.3" />
+      <element id="dir-copy" path="$PROJECT_DIR$/src/main/resources" />
     </root>
   </artifact>
 </component>

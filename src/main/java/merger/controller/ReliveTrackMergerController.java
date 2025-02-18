@@ -86,7 +86,7 @@ public class ReliveTrackMergerController {
     private void updateReplayListAndView(ReliveTrackMergerUI ui) {
         ui.clearVideoList();
         if (inputFolder != null && inputFolder.isDirectory()) {
-            List<File> unprocessedReplays = ReplayUtils.findUnprocessedReplays(inputFolder);
+            List<File> unprocessedReplays = ReplayUtils.getUnprocessedReplays(inputFolder);
             filesToProcess = unprocessedReplays.stream()
                     .sorted(Comparator.comparing(File::getName))
                     .collect(Collectors.toList());
@@ -136,7 +136,7 @@ public class ReliveTrackMergerController {
             }
             if (ui.isCleanOutputSelected() && outputFolder.exists()) {
                 System.out.println("Cleaning output folder...");
-                ReplayUtils.deleteDirectory(outputFolder);
+                ReplayUtils.deleteProcessedReplaysInDirectory(outputFolder);
             }
             if (!outputFolder.exists() && !outputFolder.mkdirs()) {
                 System.err.println("Failed to create output folder.");

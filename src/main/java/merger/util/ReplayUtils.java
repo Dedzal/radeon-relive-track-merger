@@ -6,38 +6,60 @@ import java.util.List;
 
 public class ReplayUtils {
 
-    public static void deleteDirectory(File directoryToBeDeleted) {
-        File[] allContents = directoryToBeDeleted.listFiles();
-        if (allContents != null) {
-            for (File file : allContents) {
-                deleteDirectory(file);
+    public static void deleteProcessedReplaysInDirectory(File directory) {
+        File[] filesInDirectory = directory.listFiles();
+        if (filesInDirectory != null) {
+            for (File subfolder : filesInDirectory) {
+                deleteProcessedReplaysInDirectory(subfolder);
             }
         }
-        directoryToBeDeleted.delete();
+        if (isProcessedReplay(directory) || isEmptyDirectory(directory)) {
+            directory.delete();
+        }
     }
 
-    public static List<File> findUnprocessedReplays(File inputFolder) {
+    public static List<File> getUnprocessedReplays(File inputFolder) {
         List<File> unprocessedReplays = new ArrayList<>();
-        findReplaysRecursively(inputFolder, unprocessedReplays);
+        collectUnprocessedReplays(inputFolder, unprocessedReplays);
         return unprocessedReplays;
     }
 
-    private static void findReplaysRecursively(File inputFolder, List<File> unprocessedReplays) {
-        File[] files = inputFolder.listFiles();
+    private static void collectUnprocessedReplays(File folder, List<File> collectedReplays) {
+        File[] files = folder.listFiles();
         if (files != null) {
             for (File file : files) {
                 if (file.isDirectory()) {
-                    findReplaysRecursively(file, unprocessedReplays);
+                    collectUnprocessedReplays(file, collectedReplays);
                 } else if (isUnprocessedReplay(file)) {
-                    unprocessedReplays.add(file);
+                    collectedReplays.add(file);
                 }
             }
         }
     }
 
+    private static boolean isEmptyDirectory(File directory) {
+        if (directory == null || !directory.exists()) {
+            return true;
+        }
+
+        File[] files = directory.listFiles();
+        if (files != null) {
+            return files.length == 0;
+        }
+        return false;
+    }
+
+    private static boolean isProcessedReplay(File replay) {
+        return isReplay(replay) && !isUnprocessedReplay(replay);
+    }
+
     private static boolean isUnprocessedReplay(File replay) {
-        String replayName = replay.getName();
-        return replayName.endsWith(".mp4") && replayName.contains("_replay_") && !replayName.contains("_merged");
+        return isReplay(replay) && !replay.getName().contains("_merged");
+    }
+
+    private static boolean isReplay(File file) {
+        String name = file.getName();
+        return name.endsWith(".mp4") && name.contains("_replay_");
     }
 
 }
