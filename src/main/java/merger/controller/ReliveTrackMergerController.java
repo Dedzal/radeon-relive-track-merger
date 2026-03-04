@@ -16,26 +16,74 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
+/**
+ * Controller responsible for wiring the UI and the processing logic.
+ * <p>
+ * Responsibilities:
+ * - Track the currently selected input and output folders.
+ * - Discover and manage the list of replay files that need processing.
+ * - Validate disk space and UI state before starting processing.
+ * - Launch the processing task on a background thread and report progress back to the UI.
+ * <p>
+ * Notes on concurrency and threading:
+ * - Long-running operations (actual file processing) are performed on a separate thread
+ *   so the Swing UI thread remains responsive.
+ * - UI updates are dispatched with SwingUtilities.invokeLater(...) to ensure they run
+ *   on the Event Dispatch Thread (EDT).
+ * <p>
+ * Output folder rules are centralized in OutputFolderResolver; the controller relies on
+ * that resolver to ensure the UI and processing logic share the same canonical rules.
+ */
 public class ReliveTrackMergerController {
 
+    // Constant folder name used when we copy processed replays into a sibling directory.
     public static final String REPLAYS_MERGED = "replays_merged";
 
+    // Currently selected input folder (where original replays are found)
     private File inputFolder;
+
+    // The actual internal output folder used by processing. This is the "source of truth"
+    // for where processed files will go. It may be equaled to `inputFolder` (if replacing
+    // originals) or to a child folder (input/replays_merged) or a folder chosen by the user.
     private File outputFolder;
+
+    // Cached list of files to process (discovered under inputFolder)
     private List<File> filesToProcess;
 
-    private volatile AtomicBoolean processingCancelled = new AtomicBoolean(false);
-    private volatile AtomicBoolean shutdownRequested = new AtomicBoolean(false);
+    // Flags used for graceful shutdown and cancellation
+    // AtomicBoolean is used to safely share these flags across the UI thread and the background processing thread.
+    private final AtomicBoolean processingCancelled = new AtomicBoolean(false);
+    private final AtomicBoolean shutdownRequested = new AtomicBoolean(false);
+
+    // Background thread performing the sequential processing of files.
     private Thread processingThread;
+
+    // Short-lived processing configuration/state object used while processing runs.
     private ProcessingConfig processingConfig;
+
+    // Simple counters for reporting results in the final log output.
     private int filesProcessedCount = 0;
     private int filesFailedCount = 0;
 
+    /**
+     * Called when the user selects (or changes) the input folder in the UI.
+     * <p>
+     * Behavior:
+     * - If the user canceled the folder dialog (selectedInputFolder == null) we reset
+     *   controller state and clear UI elements.
+     * - Otherwise we set the inputFolder, update the UI text field and compute a
+     *   canonical outputFolder using the OutputFolderResolver. This ensures the UI
+     *   displays the same internal path that the processing will actually use.
+     * <p>
+     * Important: this method updates the UI and also performs some validations
+     * (presence of replays, available disk space) so that the "Process" button will
+     * only be enabled when processing can reasonably proceed.
+     */
     public void selectInputFolder(ReliveTrackMergerUI ui, File selectedInputFolder) {
         ui.cleanLogTextarea();
 
         if (selectedInputFolder == null) {
-            // User canceled - reset everything
+            // User canceled - reset everything (safe no-op if already null)
             inputFolder = null;
             outputFolder = null;
             filesToProcess = null;
@@ -44,47 +92,67 @@ public class ReliveTrackMergerController {
             ui.clearVideoList();
             ui.disableButtonProcess();
         } else {
+            // Persist the selected input folder and show it in the UI
             inputFolder = selectedInputFolder;
             String inputFolderPath = inputFolder.getAbsolutePath();
             ui.setTextFieldInputFolderPath(inputFolderPath);
 
+            // Compute the canonical output folder using the resolver helper.
+            // This centralizes the rule: when replaceOriginals==true the output is
+            // the input folder; otherwise it's input/replays_merged (avoiding double-append).
             outputFolder = OutputFolderResolver.resolveSelectedOutput(inputFolder, ui.isReplaceOriginalReplaysSelected());
             ui.setTextFieldOutputFolderPath(outputFolder.getAbsolutePath());
 
-            // Toggle availability of output-folder selection/button
+            // Toggle the availability of the output-folder selection control depending on
+            // whether the user has chosen to replace originals. When replacing originals we
+            // prefer to disable the selection so the user doesn't accidentally pick another folder.
             if (ui.isReplaceOriginalReplaysSelected()) {
                 ui.disableButtonSelectOutputFolder();
             } else {
                 ui.enableButtonSelectOutputFolder();
             }
 
-            // Log the real (internal) value of outputFolder so logs and UI remain consistent
+            // Log the internal canonical output folder so the log matches what processing uses.
             ProcessingLogger.info("Output folder set to: " + outputFolder);
 
+            // Refresh the list of replays in the UI and validate the state (replays found, disk space)
             updateReplayListAndView(ui);
             validateReplaysToProcessFound(ui);
             validateEnoughStorageAvailableForProcessing(ui);
         }
     }
 
+    // Convenience helper reflecting the UI checkbox semantics.
     private static boolean dontReplaceOriginalReplays(ReliveTrackMergerUI ui) {
         return !ui.isReplaceOriginalReplaysSelected();
     }
 
+    /**
+     * Called when the user explicitly selects a different output folder.
+     * <p>
+     * We must be careful to keep the UI-visible text and the internal `outputFolder`
+     * aligned. The resolver is used again here to guarantee consistent behavior
+     * (append `replays_merged` only when appropriate and avoid double-append).
+     */
     public void selectOutputFolder(ReliveTrackMergerUI ui, File selectedOutputFolder) {
         if (selectedOutputFolder != null) {
             outputFolder = OutputFolderResolver.resolveSelectedOutput(selectedOutputFolder, ui.isReplaceOriginalReplaysSelected());
 
-            // Update UI with the canonical internal value
+            // Update the UI from the canonical internal value — do not compose paths in the UI layer.
             ui.setTextFieldOutputFolderPath(outputFolder.getAbsolutePath());
 
             // Log the real (internal) value of outputFolder so logs and UI remain consistent
             ProcessingLogger.info("Output folder set to: " + outputFolder.getAbsolutePath());
 
+            // Re-validate disk space for the newly selected output
             validateEnoughStorageAvailableForProcessing(ui);
         }
     }
 
+    /**
+     * Discover and present unprocessed replay files in the UI list. This method
+     * keeps the UI listing in sync with the controller's `filesToProcess` cache.
+     */
     private void updateReplayListAndView(ReliveTrackMergerUI ui) {
         ui.clearVideoList();
         if (inputFolder != null && inputFolder.isDirectory()) {
@@ -97,10 +165,15 @@ public class ReliveTrackMergerController {
                 ui.addToVideoList(replay.getName());
             }
 
+            // Force a repaint so the UI list immediately reflects the new contents
             ui.repaintVideoList();
         }
     }
 
+    /**
+     * Enable/disable the "Process" button depending on whether we found any
+     * replay files to operate on.
+     */
     private void validateReplaysToProcessFound(ReliveTrackMergerUI ui) {
         if (filesToProcess == null || filesToProcess.isEmpty()) {
             ProcessingLogger.info("No replays found in selected directory or any of its subdirectories");
@@ -110,13 +183,27 @@ public class ReliveTrackMergerController {
         }
     }
 
-
+    /**
+     * Run a set of validations and refreshes that are expected whenever the
+     * input/output folders change. This includes recomputing displayed sizes
+     * and ensuring enough free disk space.
+     */
     private void validateEnoughStorageAvailableForProcessing(ReliveTrackMergerUI ui) {
+        // Clear the log area — we show fresh messages for each selection change
         ui.cleanLogTextarea();
         displayFileSizeInfo();
         validateStorageSpaceAtOutputDisk(ui);
     }
 
+    /**
+     * Entry point used by UI to start processing. This prepares state, ensures
+     * FFmpeg is installed, creates the output dir if required, then starts the
+     * background processing thread.
+     *
+     * Error handling and early returns are used to keep the UI responsive and
+     * present clear diagnostic messages if something goes wrong (missing ffmpeg,
+     * failed directory creation, insufficient disk space, etc.).
+     */
     public void executeReplayProcessing(ReliveTrackMergerUI ui) {
         processingCancelled.set(false);
         shutdownRequested.set(false);
@@ -126,6 +213,8 @@ public class ReliveTrackMergerController {
         long startTime = System.currentTimeMillis();
         ui.cleanLogTextarea();
 
+        // Ensure FFmpeg is available before heavy work begins — it will throw
+        // an IllegalStateException if installation/check fails.
         try {
             FfmpegInstaller.checkOrInstallFfmpeg();
         } catch (IllegalStateException e) {
@@ -134,9 +223,11 @@ public class ReliveTrackMergerController {
             return;
         }
 
-        // if we are not replacing the original replays, we need to create the output (replays_merged) folder
+        // If the user selected the "do not replace originals" mode we will ensure
+        // the output folder points to a `replays_merged` folder. This block also
+        // performs optional cleaning of that folder if the user requested it.
         if (dontReplaceOriginalReplays(ui) && outputFolder != null) {
-            // Use a name-based check to avoid accidental double-appending of the folder name
+            // Guard against accidental double-append by checking the last segment name
             if (!REPLAYS_MERGED.equalsIgnoreCase(outputFolder.getName())) {
                 outputFolder = new File(outputFolder, REPLAYS_MERGED);
             }
@@ -144,6 +235,8 @@ public class ReliveTrackMergerController {
                 ProcessingLogger.info("Cleaning output folder...");
                 ReplayUtils.deleteProcessedReplaysInDirectory(outputFolder);
             }
+            // Try to create the output folder if it doesn't exist. If we can't create it,
+            // abort processing and inform the user.
             if (!outputFolder.exists() && !outputFolder.mkdirs()) {
                 ProcessingLogger.error("Failed to create output folder.");
                 ui.setButtonProcessToInitialState();
@@ -151,11 +244,11 @@ public class ReliveTrackMergerController {
             }
         }
 
+        // Log a summary and start the processing thread
         printAmountOfFilesToProcess();
         printOutputFolderPath();
         printSeparator();
 
-        // Initialize processing configuration
         processingConfig = new ProcessingConfig();
 
         ReplayProcessor processor = new ReplayProcessor(
@@ -166,7 +259,9 @@ public class ReliveTrackMergerController {
                 processingConfig
         );
 
-        // Launch single-threaded sequential processing on a background thread to keep UI responsive
+        // Run processing on a single dedicated background thread so we can keep
+        // the logic sequential (no parallelism for simplicity) and still be able
+        // to respond to user-initiated cancel/pause requests.
         processingThread = new Thread(() -> {
             processReplaysSequentially(processor, ui, startTime);
         });
@@ -174,6 +269,11 @@ public class ReliveTrackMergerController {
         processingThread.start();
     }
 
+    /**
+     * Check available disk space on the disk where the output folder will be created.
+     * If the total size of selected replays exceeds the available disk space we
+     * disable the Process button and inform the user.
+     */
     private void validateStorageSpaceAtOutputDisk(ReliveTrackMergerUI ui) {
         if (inputFolder != null && outputFolder != null && filesToProcess != null && !filesToProcess.isEmpty()) {
             double totalSizeOfReplays = getTotalSizeOfSelectedReplays();
@@ -188,6 +288,10 @@ public class ReliveTrackMergerController {
         }
     }
 
+    /**
+     * Request a graceful stop of processing. We signal the processing thread to
+     * shutdown and wait briefly (30s) for it to finish.
+     */
     public void cancelReplayProcessing() {
         if (processingThread != null && processingThread.isAlive()) {
             ProcessingLogger.info("Requesting graceful shutdown of replay processing...");
@@ -207,6 +311,10 @@ public class ReliveTrackMergerController {
         }
     }
 
+    /**
+     * Pause/resume helpers simply delegate to the ProcessingConfig, which exposes
+     * a pause/resume primitive used by the background thread.
+     */
     public void pauseReplayProcessing() {
         if (processingConfig != null && processingThread != null && processingThread.isAlive()) {
             ProcessingLogger.info("Pausing replay processing...");
@@ -221,6 +329,13 @@ public class ReliveTrackMergerController {
         }
     }
 
+    /**
+     * The core sequential processing loop. Each replay is processed in-order, and
+     * the UI is updated with a small status emoji prefix to indicate progress.
+     * <p>
+     * Error handling in the loop catches InterruptedException (used for shutdown)
+     * separately so we can perform the correct UI update and bookkeeping.
+     */
     private void processReplaysSequentially(ReplayProcessor processor, ReliveTrackMergerUI ui, long startTime) {
         int totalFiles = filesToProcess.size();
 
@@ -247,21 +362,21 @@ public class ReliveTrackMergerController {
                 }
 
                 try {
-                    // Update UI to show processing status
+                    // Update UI to show processing status; updates must run on the EDT
                     SwingUtilities.invokeLater(() -> {
                         ui.updateReplayStatusInList("🔁 " + replayFile.getName());
                     });
 
-                    // Process the replay file once (no retries for local app)
+                    // Process the replay file once (no retries) and update counters
                     processor.process(replayFile);
 
-                    // Update UI to show success status
                     filesProcessedCount++;
                     SwingUtilities.invokeLater(() -> {
                         ui.updateReplayStatusInList("✅ " + replayFile.getName());
                     });
 
                 } catch (InterruptedException e) {
+                    // InterruptedException commonly signifies a requested shutdown — handle specially
                     ProcessingLogger.error("Processing interrupted: " + replayFile.getName());
                     if (shutdownRequested.get()) {
                         SwingUtilities.invokeLater(() -> {
@@ -275,6 +390,7 @@ public class ReliveTrackMergerController {
                     });
 
                 } catch (Exception e) {
+                    // Generic exception for a single file should not abort the whole run; we record it
                     ProcessingLogger.error("Error processing: " + replayFile.getName() + " - " + e.getMessage(), e);
                     filesFailedCount++;
                     SwingUtilities.invokeLater(() -> {
@@ -282,16 +398,12 @@ public class ReliveTrackMergerController {
                     });
                 }
 
-                // Update progress
-                SwingUtilities.invokeLater(() -> {
-                    updateProgressDisplay(ui, totalFiles);
-                });
             }
         } finally {
-            // Ensure graceful shutdown of processor
+            // Ensure a graceful shutdown of processor resources
             processor.requestShutdown();
 
-            // Finalize processing on the UI thread
+            // Finalize processing on the UI thread: write totals and reset UI controls
             SwingUtilities.invokeLater(() -> {
                 logFinalProcessingResult(this, startTime);
                 ui.setButtonProcessToInitialState();
@@ -303,10 +415,8 @@ public class ReliveTrackMergerController {
         }
     }
 
-    private void updateProgressDisplay(ReliveTrackMergerUI ui, int totalFiles) {
-        // Silent progress update - no debug logging needed for local app
-    }
 
+    // Helper that logs a short summary on completion or cancellation.
     private static void logFinalProcessingResult(ReliveTrackMergerController controller, long startTime) {
         if (controller.isProcessingCancelled()) {
             ProcessingLogger.info("Replay processing stopped by user");
@@ -319,6 +429,11 @@ public class ReliveTrackMergerController {
         }
     }
 
+    /**
+     * Show some size information to the user. This logs both the total size of
+     * the selected replays and the available size on disk (in GB) to help users
+     * judge whether they need to free space or pick another output location.
+     */
     private void displayFileSizeInfo() {
         if (inputFolder != null && outputFolder != null && filesToProcess != null && !filesToProcess.isEmpty()) {
             ProcessingLogger.info("Total file size of selected replays: " + String.format("%.1f", getTotalSizeOfSelectedReplays()) + " GB");
@@ -348,16 +463,28 @@ public class ReliveTrackMergerController {
         return inputFolder;
     }
 
+    /**
+     * Convenience helper used by the UI when the user toggles the "replace originals"
+     * checkbox. We also log the change so the log is always consistent with the UI.
+     */
     public void setInputFolderAsOutputFolder() {
         outputFolder = inputFolder;
         ProcessingLogger.info("Output folder set to: " + outputFolder);
     }
 
+    /**
+     * External setter that allows tests or other components to set the output folder
+     * programmatically. We log the canonical value so callers can rely on the log.
+     */
     public void setOutputFolder(File file) {
         outputFolder = file;
         ProcessingLogger.info("Output folder set to: " + outputFolder);
     }
 
+    /**
+     * Compute the total size (in GB) of the selected replay files. This is used
+     * for a quick preflight disk-space check.
+     */
     private double getTotalSizeOfSelectedReplays() {
         long totalSizeInBytes = filesToProcess.stream()
                 .mapToLong(File::length) // Get file size in bytes
@@ -365,6 +492,12 @@ public class ReliveTrackMergerController {
         return totalSizeInBytes / (1024.0 * 1024.0 * 1024.0); // Convert bytes to gigabytes
     }
 
+    /**
+     * Probe the filesystem to get the available free space for the output folder's
+     * drive. If the output folder doesn't exist yet we walk up the parent chain until
+     * we find an existing directory and probe that — this handles the common case
+     * where the user has selected a new directory that hasn't been created yet.
+     */
     private double getAvailableDiskSpaceOfOutputDirectory() {
         File probe = outputFolder;
         if (probe == null) return 0.0;

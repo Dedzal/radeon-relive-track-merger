@@ -15,7 +15,7 @@ public class ReplayProcessor {
     private final boolean replaceSourceReplays;
     private final boolean deleteMicrophoneTracks;
     private final ProcessingConfig processingConfig;
-    private volatile AtomicBoolean shutdownRequested = new AtomicBoolean(false);
+    private final AtomicBoolean shutdownRequested = new AtomicBoolean(false);
     private volatile Process currentProcess = null;
 
     public ReplayProcessor(File outputDirectory, File inputDirectory, boolean replaceSourceReplays, boolean deleteMicrophoneTracks, ProcessingConfig processingConfig) {
