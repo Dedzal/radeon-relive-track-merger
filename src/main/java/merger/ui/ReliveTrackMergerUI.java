@@ -3,6 +3,7 @@ package merger.ui;
 import com.formdev.flatlaf.FlatDarculaLaf;
 import merger.controller.ReliveTrackMergerController;
 import merger.ffmpeg.FfmpegInstaller;
+import merger.util.OutputFolderResolver;
 
 import javax.swing.*;
 import java.awt.*;
@@ -12,7 +13,6 @@ import java.io.File;
 import java.io.OutputStream;
 import java.io.PrintStream;
 
-import static merger.controller.ReliveTrackMergerController.OUTPUT_FOLDER_NAME;
 import static merger.ui.UIConstants.*;
 
 public class ReliveTrackMergerUI extends JFrame {
@@ -136,7 +136,10 @@ public class ReliveTrackMergerUI extends JFrame {
                 // if selected, set input folder as output folder and update the UI, enable delete mic tracks
                 if (checkboxReplaceOriginalVideoInsteadOfCopying.isSelected()) {
                     controller.setInputFolderAsOutputFolder();
-                    textFieldOutputFolderPath.setText(textFieldInputFolderPath.getText());
+                    File out = OutputFolderResolver.resolveSelectedOutput(controller.getInputFolder(), true);
+                    if (out != null) {
+                        textFieldOutputFolderPath.setText(out.getAbsolutePath());
+                    }
                     checkboxDeleteMicrophoneTracksAfterCopying.setEnabled(true);
 
                     if (!warnedAboutReplace) {
@@ -146,7 +149,9 @@ public class ReliveTrackMergerUI extends JFrame {
                 } else {
                     // if deselected, set replays_merged as the default output folder and disable mic checkbox
                     if (controller.getInputFolder() != null) {
-                        textFieldOutputFolderPath.setText(textFieldInputFolderPath.getText() + File.separator + OUTPUT_FOLDER_NAME);
+                        File out = OutputFolderResolver.resolveSelectedOutput(controller.getInputFolder(), false);
+                        controller.setOutputFolder(out);
+                        textFieldOutputFolderPath.setText(out.getAbsolutePath());
                     }
                     checkboxDeleteMicrophoneTracksAfterCopying.setEnabled(false);
                 }
@@ -247,7 +252,8 @@ public class ReliveTrackMergerUI extends JFrame {
     private JScrollPane createLogScrollPane() {
         textareaLog = new JTextArea();
         textareaLog.setEditable(false);
-        textareaLog.setFocusable(false);
+        textareaLog.setFocusable(true);
+        textareaLog.setLineWrap(false);
         JScrollPane logScrollPane = new JScrollPane(textareaLog);
         logScrollPane.setPreferredSize(new Dimension(0, 100));
         return logScrollPane;

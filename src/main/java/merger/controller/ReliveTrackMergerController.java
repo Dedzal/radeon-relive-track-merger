@@ -4,6 +4,7 @@ import merger.ffmpeg.FfmpegInstaller;
 import merger.processing.ProcessingConfig;
 import merger.processing.ReplayProcessor;
 import merger.ui.ReliveTrackMergerUI;
+import merger.util.OutputFolderResolver;
 import merger.util.ProcessingLogger;
 import merger.util.ReplayUtils;
 
@@ -17,7 +18,7 @@ import java.util.stream.Collectors;
 
 public class ReliveTrackMergerController {
 
-    public static final String OUTPUT_FOLDER_NAME = "replays_merged";
+    public static final String REPLAYS_MERGED = "replays_merged";
 
     private File inputFolder;
     private File outputFolder;
@@ -27,7 +28,6 @@ public class ReliveTrackMergerController {
     private volatile AtomicBoolean shutdownRequested = new AtomicBoolean(false);
     private Thread processingThread;
     private ProcessingConfig processingConfig;
-    private long processingStartTime = 0;
     private int filesProcessedCount = 0;
     private int filesFailedCount = 0;
 
@@ -48,29 +48,18 @@ public class ReliveTrackMergerController {
             String inputFolderPath = inputFolder.getAbsolutePath();
             ui.setTextFieldInputFolderPath(inputFolderPath);
 
-            if (outputFolder == null) {
-                /*
-                    If no output folder has previously been selected, it is automatically set to
-                    input_folder/OUTPUT_FOLDER_NAME
-                 */
-                setInputFolderAsOutputFolder();
+            outputFolder = OutputFolderResolver.resolveSelectedOutput(inputFolder, ui.isReplaceOriginalReplaysSelected());
+            ui.setTextFieldOutputFolderPath(outputFolder.getAbsolutePath());
 
-                /*
-                    If the user chose not to replace the original replays, processed replays are put in a new folder
-                    called OUTPUT_FOLDER_NAME at the selected output directory.
-
-                    Otherwise, if the user chooses to replace the original replays with processed ones, the input
-                    folder is also the output folder. Both paths in the text fields are equal in this case.
-                 */
-                if (isProcessingWithOutputFolderCreation(ui)) {
-                    ui.setTextFieldOutputFolderPath(inputFolderPath + File.separator + OUTPUT_FOLDER_NAME);
-                    ui.enableButtonSelectOutputFolder();
-                } else {
-                    ui.setTextFieldOutputFolderPath(outputFolder.getAbsolutePath());
-                    ui.disableButtonSelectOutputFolder();
-                }
-
+            // Toggle availability of output-folder selection/button
+            if (ui.isReplaceOriginalReplaysSelected()) {
+                ui.disableButtonSelectOutputFolder();
+            } else {
+                ui.enableButtonSelectOutputFolder();
             }
+
+            // Log the real (internal) value of outputFolder so logs and UI remain consistent
+            ProcessingLogger.info("Output folder set to: " + outputFolder);
 
             updateReplayListAndView(ui);
             validateReplaysToProcessFound(ui);
@@ -78,14 +67,19 @@ public class ReliveTrackMergerController {
         }
     }
 
-    private static boolean isProcessingWithOutputFolderCreation(ReliveTrackMergerUI ui) {
+    private static boolean dontReplaceOriginalReplays(ReliveTrackMergerUI ui) {
         return !ui.isReplaceOriginalReplaysSelected();
     }
 
     public void selectOutputFolder(ReliveTrackMergerUI ui, File selectedOutputFolder) {
         if (selectedOutputFolder != null) {
-            outputFolder = selectedOutputFolder;
-            ui.setTextFieldOutputFolderPath(outputFolder.getAbsolutePath() + File.separator + OUTPUT_FOLDER_NAME);
+            outputFolder = OutputFolderResolver.resolveSelectedOutput(selectedOutputFolder, ui.isReplaceOriginalReplaysSelected());
+
+            // Update UI with the canonical internal value
+            ui.setTextFieldOutputFolderPath(outputFolder.getAbsolutePath());
+
+            // Log the real (internal) value of outputFolder so logs and UI remain consistent
+            ProcessingLogger.info("Output folder set to: " + outputFolder.getAbsolutePath());
 
             validateEnoughStorageAvailableForProcessing(ui);
         }
@@ -130,7 +124,6 @@ public class ReliveTrackMergerController {
         filesFailedCount = 0;
 
         long startTime = System.currentTimeMillis();
-        processingStartTime = startTime;
         ui.cleanLogTextarea();
 
         try {
@@ -142,9 +135,10 @@ public class ReliveTrackMergerController {
         }
 
         // if we are not replacing the original replays, we need to create the output (replays_merged) folder
-        if (isProcessingWithOutputFolderCreation(ui) && outputFolder != null) {
-            if (!outputFolder.getAbsolutePath().endsWith(OUTPUT_FOLDER_NAME)) {
-                outputFolder = new File(outputFolder, OUTPUT_FOLDER_NAME);
+        if (dontReplaceOriginalReplays(ui) && outputFolder != null) {
+            // Use a name-based check to avoid accidental double-appending of the folder name
+            if (!REPLAYS_MERGED.equalsIgnoreCase(outputFolder.getName())) {
+                outputFolder = new File(outputFolder, REPLAYS_MERGED);
             }
             if (ui.isCleanOutputSelected() && outputFolder.exists()) {
                 ProcessingLogger.info("Cleaning output folder...");
@@ -356,6 +350,12 @@ public class ReliveTrackMergerController {
 
     public void setInputFolderAsOutputFolder() {
         outputFolder = inputFolder;
+        ProcessingLogger.info("Output folder set to: " + outputFolder);
+    }
+
+    public void setOutputFolder(File file) {
+        outputFolder = file;
+        ProcessingLogger.info("Output folder set to: " + outputFolder);
     }
 
     private double getTotalSizeOfSelectedReplays() {
@@ -366,11 +366,13 @@ public class ReliveTrackMergerController {
     }
 
     private double getAvailableDiskSpaceOfOutputDirectory() {
-        if (outputFolder != null) {
-            long freeSpaceInBytes = outputFolder.getFreeSpace(); // Returns free space in bytes
-            return freeSpaceInBytes / (1024.0 * 1024.0 * 1024.0); // Convert bytes to gigabytes
-        }
-        return 0.0;
+        File probe = outputFolder;
+        if (probe == null) return 0.0;
+        // If the output folder doesn't yet exist use the nearest existing parent to probe free space
+        while (probe != null && !probe.exists()) probe = probe.getParentFile();
+        if (probe == null) return 0.0;
+        long freeSpaceInBytes = probe.getFreeSpace(); // Returns free space in bytes
+        return freeSpaceInBytes / (1024.0 * 1024.0 * 1024.0); // Convert bytes to gigabytes
     }
 
     private void openOutputDirectory() {
