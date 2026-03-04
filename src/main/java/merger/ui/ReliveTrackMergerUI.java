@@ -4,6 +4,7 @@ import com.formdev.flatlaf.FlatDarculaLaf;
 import merger.controller.ReliveTrackMergerController;
 import merger.ffmpeg.FfmpegInstaller;
 import merger.util.OutputFolderResolver;
+import merger.util.ProcessingLogger;
 
 import javax.swing.*;
 import java.awt.*;
@@ -143,7 +144,7 @@ public class ReliveTrackMergerUI extends JFrame {
                     checkboxDeleteMicrophoneTracksAfterCopying.setEnabled(true);
 
                     if (!warnedAboutReplace) {
-                        System.out.println("Warning: there will be no way of recovering the original replays after they have been replaced!");
+                        ProcessingLogger.warn("Warning: there will be no way of recovering the original replays after they have been replaced!");
                         warnedAboutReplace = true;
                     }
                 } else {

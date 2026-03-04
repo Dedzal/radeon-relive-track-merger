@@ -1,5 +1,7 @@
 package merger.ffmpeg;
 
+import merger.util.ProcessingLogger;
+
 import javax.swing.*;
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -25,22 +27,22 @@ public class FfmpegInstaller {
             int exitCode = process.waitFor();
             if (exitCode != 0) {
                 // if the process failed, the ffmpeg command could probably not be found
-                System.out.println("Failed to get ffmpeg version. Version check returned first line: ");
-                System.out.println(firstLine);
+                ProcessingLogger.warn("Failed to get ffmpeg version. Version check returned first line: ");
+                ProcessingLogger.warn(firstLine);
                 return null;
             }
 
             // if the process succeeded, the first line contains the version information of ffmpeg
             return firstLine;
         } catch (Exception e) {
-            System.out.println("Failed to get ffmpeg version due to exception: " + e.getMessage());
+            ProcessingLogger.error("Failed to get ffmpeg version due to exception: " + e.getMessage());
             return null;
         }
     }
 
     public static void installFfmpegUsingWinget() {
         try {
-            System.out.println("Installing ffmpeg using winget in a Command Prompt with elevated privileges...");
+            ProcessingLogger.info("Installing ffmpeg using winget in a Command Prompt with elevated privileges...");
 
             /*
                 Start a cmd process WITH ADMIN RIGHTS to install ffmpeg. The installation can also complete without
@@ -53,10 +55,10 @@ public class FfmpegInstaller {
 
             int exitCode = process.waitFor();
             if (exitCode == 0) {
-                System.out.println("FFmpeg installed successfully!");
+                ProcessingLogger.info("FFmpeg installed successfully!");
                 showFfmpegInstallationSuccessfulDialog();
             } else {
-                System.out.println("The installation process did not complete successfully.");
+                ProcessingLogger.warn("The installation process did not complete successfully.");
                 showFfmpegInstallationFailedDialog();
             }
 
@@ -77,7 +79,7 @@ public class FfmpegInstaller {
                 showFfmpegInstallRejectedDialog();
             }
         } else {
-            System.out.println("Using " + getFfmpegVersion());
+            ProcessingLogger.info("Using " + getFfmpegVersion());
         }
     }
 
