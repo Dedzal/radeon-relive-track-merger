@@ -1,9 +1,12 @@
 package merger.processing;
 
+import merger.util.ProcessingLogger;
+
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class ReplayProcessor {
 
@@ -11,15 +14,30 @@ public class ReplayProcessor {
     private final File inputDirectory;
     private final boolean replaceSourceReplays;
     private final boolean deleteMicrophoneTracks;
+    private final ProcessingConfig processingConfig;
+    private volatile AtomicBoolean shutdownRequested = new AtomicBoolean(false);
+    private volatile Process currentProcess = null;
 
-    public ReplayProcessor(File outputDirectory, File inputDirectory, boolean replaceSourceReplays, boolean deleteMicrophoneTracks) {
+    public ReplayProcessor(File outputDirectory, File inputDirectory, boolean replaceSourceReplays, boolean deleteMicrophoneTracks, ProcessingConfig processingConfig) {
         this.outputDirectory = outputDirectory;
         this.inputDirectory = inputDirectory;
         this.replaceSourceReplays = replaceSourceReplays;
         this.deleteMicrophoneTracks = deleteMicrophoneTracks;
+        this.processingConfig = processingConfig;
     }
 
     public void process(File replayFile) throws IOException, InterruptedException {
+        // Check if shutdown was requested before starting
+        if (shutdownRequested.get()) {
+            throw new InterruptedException("Shutdown requested before processing file: " + replayFile.getName());
+        }
+
+        // Check and wait if pause is requested
+        processingConfig.checkAndWaitIfPaused();
+
+        // Validate available disk space before processing
+        validateDiskSpaceBeforeProcessing(replayFile);
+
         String replayName = replayFile.getName();
         String replayNameWithoutExtension = getFileNameWithoutExtension(replayName);
         File microphoneTrack = new File(replayFile.getParent(), replayNameWithoutExtension + ".m4a");
@@ -32,23 +50,54 @@ public class ReplayProcessor {
         }
     }
 
+    public void requestShutdown() {
+        shutdownRequested.set(true);
+        // Gracefully terminate the current FFmpeg process if running
+        if (currentProcess != null && currentProcess.isAlive()) {
+            ProcessingLogger.info("Terminating current FFmpeg process...");
+            currentProcess.destroy();
+        }
+    }
+
+    public boolean isShutdownRequested() {
+        return shutdownRequested.get();
+    }
+
     private static String getFileNameWithoutExtension(String videoName) {
         return videoName.substring(0, videoName.lastIndexOf('.'));
     }
 
     private void handleReplayWithNoMicrophoneTrack(File replayFile, String replayName, File outputFile) throws IOException {
         if (!isReplaceSourceReplaysSelected()) {
-            System.out.println("Replay does not contain a microphone track, copying to output folder - " + replayName);
+            ProcessingLogger.info("Replay does not contain a microphone track, copying to output folder - " + replayName);
             Files.copy(replayFile.toPath(), outputFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
         } else {
-            System.out.println("Replay does not contain a microphone track, nothing to do! - " + replayName);
+            ProcessingLogger.info("Replay does not contain a microphone track, nothing to do! - " + replayName);
         }
     }
 
     private void embedMicrophoneTrackToReplay(File replayFile, String replayName, File microphoneTrack, File outputFile) throws IOException, InterruptedException {
-        System.out.println("Processing replay: " + replayName);
-        Process process = embedMicrophoneTrackToReplayAndSaveOutput(replayFile, microphoneTrack, outputFile);
-        process.waitFor();
+        // Check if shutdown was requested before starting FFmpeg
+        if (shutdownRequested.get()) {
+            throw new InterruptedException("Shutdown requested before processing: " + replayName);
+        }
+
+        ProcessingLogger.info("Processing replay: " + replayName);
+        long startTime = System.currentTimeMillis();
+        currentProcess = embedMicrophoneTrackToReplayAndSaveOutput(replayFile, microphoneTrack, outputFile);
+
+        try {
+            // Wait for FFmpeg process to complete
+            currentProcess.waitFor();
+        } finally {
+            currentProcess = null;
+        }
+
+        // Check if shutdown was requested during processing
+        if (shutdownRequested.get()) {
+            throw new InterruptedException("Shutdown requested during processing: " + replayName);
+        }
+
 
         if (isReplaceSourceReplaysSelected()) {
             /*
@@ -59,7 +108,8 @@ public class ReplayProcessor {
             deleteMicrophoneTrackIfSelected(microphoneTrack);
         }
 
-        System.out.println("Replay: " + replayFile.getName() + " processed");
+        long processingTimeMs = System.currentTimeMillis() - startTime;
+        ProcessingLogger.info("Replay: " + replayFile.getName() + " processed in " + (processingTimeMs / 1000.0) + " seconds");
     }
 
     private void deleteMicrophoneTrackIfSelected(File microphoneTrack) {
@@ -118,5 +168,29 @@ public class ReplayProcessor {
 
     private boolean isFromSubdirectory(File videoFile) {
         return !videoFile.getParentFile().getName().equals(inputDirectory.getName());
+    }
+
+    private void validateDiskSpaceBeforeProcessing(File replayFile) throws IOException {
+        if (outputDirectory == null) {
+            return;
+        }
+
+        long availableSpace = outputDirectory.getFreeSpace();
+        long requiredSpace = replayFile.length() * 2; // Need space for both input and output during processing
+        long minRequiredSpace = ProcessingConfig.MIN_FREE_SPACE_MB * 1024 * 1024;
+
+        if (requiredSpace > availableSpace) {
+            String availableMB = String.format("%.1f", availableSpace / (1024.0 * 1024.0));
+            String requiredMB = String.format("%.1f", requiredSpace / (1024.0 * 1024.0));
+            throw new IOException("Insufficient disk space. Required: " + requiredMB + " MB, Available: " + availableMB + " MB");
+        }
+
+        if (availableSpace < minRequiredSpace) {
+            ProcessingLogger.warn("Low disk space: " + String.format("%.1f", availableSpace / (1024.0 * 1024.0)) + " MB remaining");
+        }
+    }
+
+    public ProcessingConfig getProcessingConfig() {
+        return processingConfig;
     }
 }

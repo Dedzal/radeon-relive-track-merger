@@ -21,6 +21,7 @@ public class ReliveTrackMergerUI extends JFrame {
 
     private JPanel contentPane;
     private JButton buttonProcess;
+    private JButton buttonPauseResume;
     private JButton buttonSelectInputFolder;
     private JButton buttonSelectOutputFolder;
     private JTextField textFieldInputFolderPath;
@@ -39,6 +40,7 @@ public class ReliveTrackMergerUI extends JFrame {
     private final ReliveTrackMergerController controller;
 
     private boolean warnedAboutReplace = false;
+    private boolean processingPaused = false;
 
     public static void start() {
         FlatDarculaLaf.setup();
@@ -184,13 +186,44 @@ public class ReliveTrackMergerUI extends JFrame {
         constraints.fill = GridBagConstraints.BOTH;
         contentPane.add(scrollpaneLog, constraints);
 
+        // Create button panel for Process and Pause/Resume buttons
+        JPanel buttonPanel = new JPanel(new GridBagLayout());
+        GridBagConstraints buttonConstraints = new GridBagConstraints();
+        buttonConstraints.insets = new Insets(2, 2, 2, 2);
+        buttonConstraints.fill = GridBagConstraints.HORIZONTAL;
+        buttonConstraints.gridy = 0;
+
         buttonProcess = createProcessButton();
+        buttonConstraints.gridx = 0;
+        buttonConstraints.weightx = 1.0;
+        buttonPanel.add(buttonProcess, buttonConstraints);
+
+        buttonPauseResume = new JButton("Pause");
+        buttonPauseResume.setEnabled(false);
+        buttonPauseResume.setFocusable(false);
+        buttonPauseResume.addActionListener(e -> togglePauseResume());
+        buttonConstraints.gridx = 1;
+        buttonConstraints.weightx = 0.3;
+        buttonPanel.add(buttonPauseResume, buttonConstraints);
+
         constraints.gridx = 0;
         constraints.gridy = 9;
-        constraints.gridwidth = 2; // Span the button across the entire width
+        constraints.gridwidth = 2;
         constraints.weighty = 0;
         constraints.fill = GridBagConstraints.HORIZONTAL;
-        contentPane.add(buttonProcess, constraints);
+        contentPane.add(buttonPanel, constraints);
+    }
+
+    private void togglePauseResume() {
+        if (processingPaused) {
+            controller.resumeReplayProcessing();
+            buttonPauseResume.setText("Pause");
+            processingPaused = false;
+        } else {
+            controller.pauseReplayProcessing();
+            buttonPauseResume.setText("Resume");
+            processingPaused = true;
+        }
     }
 
     private JButton createButton(String label, ActionListener actionListener) {
@@ -260,6 +293,9 @@ public class ReliveTrackMergerUI extends JFrame {
 
     public void setButtonProcessToInitialState() {
         buttonProcess.setText(BUTTON_PROCESS_LABEL);
+        buttonPauseResume.setEnabled(false);
+        buttonPauseResume.setText("Pause");
+        processingPaused = false;
         clearActionListenersAndSetNewAction(buttonProcess, startProcessingAction());
     }
 
@@ -272,6 +308,7 @@ public class ReliveTrackMergerUI extends JFrame {
 
     public void setButtonProcessToCancelState() {
         buttonProcess.setText(BUTTON_CANCEL_LABEL);
+        buttonPauseResume.setEnabled(true);
         clearActionListenersAndSetNewAction(buttonProcess, cancelProcessingAction());
     }
 

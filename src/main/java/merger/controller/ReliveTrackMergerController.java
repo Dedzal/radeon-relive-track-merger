@@ -1,9 +1,10 @@
 package merger.controller;
 
 import merger.ffmpeg.FfmpegInstaller;
+import merger.processing.ProcessingConfig;
 import merger.processing.ReplayProcessor;
-import merger.processing.ReplayProcessorWorker;
 import merger.ui.ReliveTrackMergerUI;
+import merger.util.ProcessingLogger;
 import merger.util.ReplayUtils;
 
 import javax.swing.*;
@@ -11,8 +12,6 @@ import java.awt.*;
 import java.io.File;
 import java.util.Comparator;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
@@ -25,8 +24,13 @@ public class ReliveTrackMergerController {
     private List<File> filesToProcess;
 
     private volatile AtomicBoolean processingCancelled = new AtomicBoolean(false);
-    private volatile List<ReplayProcessorWorker> workers = new CopyOnWriteArrayList<>();
-    private CountDownLatch latch;
+    private volatile AtomicBoolean shutdownRequested = new AtomicBoolean(false);
+    private volatile AtomicBoolean pauseRequested = new AtomicBoolean(false);
+    private Thread processingThread;
+    private ProcessingConfig processingConfig;
+    private long processingStartTime = 0;
+    private int filesProcessedCount = 0;
+    private int filesFailedCount = 0;
 
     public void selectInputFolder(ReliveTrackMergerUI ui, File selectedInputFolder) {
         ui.cleanLogTextarea();
@@ -101,7 +105,7 @@ public class ReliveTrackMergerController {
 
     private void validateReplaysToProcessFound(ReliveTrackMergerUI ui) {
         if (filesToProcess == null || filesToProcess.isEmpty()) {
-            System.out.println("No replays found in selected directory or any of its subdirectories");
+            ProcessingLogger.info("No replays found in selected directory or any of its subdirectories");
             ui.disableButtonProcess();
         } else {
             ui.enableButtonProcess();
@@ -117,14 +121,19 @@ public class ReliveTrackMergerController {
 
     public void executeReplayProcessing(ReliveTrackMergerUI ui) {
         processingCancelled.set(false);
+        shutdownRequested.set(false);
+        pauseRequested.set(false);
+        filesProcessedCount = 0;
+        filesFailedCount = 0;
 
         long startTime = System.currentTimeMillis();
+        processingStartTime = startTime;
         ui.cleanLogTextarea();
 
         try {
             FfmpegInstaller.checkOrInstallFfmpeg();
         } catch (IllegalStateException e) {
-            System.err.println("FFmpeg installation failed: " + e.getMessage());
+            ProcessingLogger.error("FFmpeg installation failed: " + e.getMessage(), e);
             ui.setButtonProcessToInitialState();
             return;
         }
@@ -135,11 +144,11 @@ public class ReliveTrackMergerController {
                 outputFolder = new File(outputFolder, OUTPUT_FOLDER_NAME);
             }
             if (ui.isCleanOutputSelected() && outputFolder.exists()) {
-                System.out.println("Cleaning output folder...");
+                ProcessingLogger.info("Cleaning output folder...");
                 ReplayUtils.deleteProcessedReplaysInDirectory(outputFolder);
             }
             if (!outputFolder.exists() && !outputFolder.mkdirs()) {
-                System.err.println("Failed to create output folder.");
+                ProcessingLogger.error("Failed to create output folder.");
                 ui.setButtonProcessToInitialState();
                 return;
             }
@@ -149,26 +158,23 @@ public class ReliveTrackMergerController {
         printOutputFolderPath();
         printSeparator();
 
-        latch = new CountDownLatch(filesToProcess.size());
+        // Initialize processing configuration
+        processingConfig = new ProcessingConfig();
+
         ReplayProcessor processor = new ReplayProcessor(
                 outputFolder,
                 inputFolder,
                 ui.isReplaceOriginalReplaysSelected(),
-                ui.isDeleteMicrophoneTracksSelected()
+                ui.isDeleteMicrophoneTracksSelected(),
+                processingConfig
         );
 
-        workers = filesToProcess.stream().map(file -> new ReplayProcessorWorker(
-                file,
-                processor,
-                ui::updateReplayStatusInList,
-                latch)
-        ).collect(Collectors.toCollection(CopyOnWriteArrayList::new));
-
-        for (ReplayProcessorWorker worker : workers) {
-            worker.execute();
-        }
-
-        finalizeProcessing(this, latch, startTime, ui);
+        // Launch single-threaded sequential processing on a background thread to keep UI responsive
+        processingThread = new Thread(() -> {
+            processReplaysSequentially(processor, ui, startTime);
+        });
+        processingThread.setName("ReplayProcessingThread");
+        processingThread.start();
     }
 
     private void validateStorageSpaceAtOutputDisk(ReliveTrackMergerUI ui) {
@@ -176,8 +182,8 @@ public class ReliveTrackMergerController {
             double totalSizeOfReplays = getTotalSizeOfSelectedReplays();
             double availableDiskSpace = getAvailableDiskSpaceOfOutputDirectory();
             if (totalSizeOfReplays >= availableDiskSpace) {
-                System.out.println("The total file size of the selected replays (" + String.format("%.1f", totalSizeOfReplays) + " GB) exceeds the available disk space (" + String.format("%.1f", availableDiskSpace) + " GB).");
-                System.out.println("Please free up some space on the target disk or select a different output directory.");
+                ProcessingLogger.info("The total file size of the selected replays (" + String.format("%.1f", totalSizeOfReplays) + " GB) exceeds the available disk space (" + String.format("%.1f", availableDiskSpace) + " GB).");
+                ProcessingLogger.info("Please free up some space on the target disk or select a different output directory.");
                 ui.disableButtonProcess();
             } else {
                 ui.enableButtonProcess();
@@ -186,71 +192,168 @@ public class ReliveTrackMergerController {
     }
 
     public void cancelReplayProcessing() {
-        if (workers != null && !workers.isEmpty()) {
-            System.out.println("Cancelling replay processing...");
-
+        if (processingThread != null && processingThread.isAlive()) {
+            ProcessingLogger.info("Requesting graceful shutdown of replay processing...");
             processingCancelled.set(true);
-            for (ReplayProcessorWorker worker : workers) {
-                worker.cancel(true);
-            }
-            releaseLatch(latch);
-        }
-    }
+            shutdownRequested.set(true);
 
-    private void releaseLatch(CountDownLatch latch) {
-        while (latch.getCount() > 0) {
-            latch.countDown();
-        }
-    }
-
-    private static void finalizeProcessing(ReliveTrackMergerController controller, CountDownLatch latch, long startTime, ReliveTrackMergerUI ui) {
-        new Thread(() -> {
+            // Wait for thread to finish gracefully (max 30 seconds)
             try {
-                latch.await(); // Wait until all workers finish
-                SwingUtilities.invokeLater(() -> {
-                    logFinalProcessingResult(controller, startTime);
-                    ui.setButtonProcessToInitialState();
-                });
+                processingThread.join(30000);
+                if (processingThread.isAlive()) {
+                    ProcessingLogger.error("Processing thread did not shut down gracefully within timeout.");
+                }
+            } catch (InterruptedException e) {
+                ProcessingLogger.error("Interrupted while waiting for processing thread to shut down: " + e.getMessage());
+                Thread.currentThread().interrupt();
+            }
+        }
+    }
 
-                if (ui.isOpenOutputFolderSelected()) {
-                    controller.openOutputDirectory();
+    public void pauseReplayProcessing() {
+        if (processingConfig != null && processingThread != null && processingThread.isAlive()) {
+            ProcessingLogger.info("Pausing replay processing...");
+            processingConfig.requestPause();
+            pauseRequested.set(true);
+        }
+    }
+
+    public void resumeReplayProcessing() {
+        if (processingConfig != null && processingThread != null && processingThread.isAlive()) {
+            ProcessingLogger.info("Resuming replay processing...");
+            processingConfig.resume();
+            pauseRequested.set(false);
+        }
+    }
+
+    public boolean isPauseRequested() {
+        return pauseRequested.get();
+    }
+
+    private void processReplaysSequentially(ReplayProcessor processor, ReliveTrackMergerUI ui, long startTime) {
+        int totalFiles = filesToProcess.size();
+
+        try {
+            for (int fileIndex = 0; fileIndex < filesToProcess.size(); fileIndex++) {
+                File replayFile = filesToProcess.get(fileIndex);
+
+                // Check for graceful shutdown request
+                if (shutdownRequested.get()) {
+                    processor.requestShutdown();
+                    processingCancelled.set(true);
+                    break;
                 }
 
-            } catch (InterruptedException e) {
-                System.err.println("Processing was interrupted!");
+                // Check and wait if pause is requested
+                try {
+                    processingConfig.checkAndWaitIfPaused();
+                } catch (InterruptedException e) {
+                    if (shutdownRequested.get()) {
+                        break;
+                    }
+                    ProcessingLogger.error("Processing interrupted: " + e.getMessage());
+                    break;
+                }
+
+                try {
+                    // Update UI to show processing status
+                    SwingUtilities.invokeLater(() -> {
+                        ui.updateReplayStatusInList("🔁 " + replayFile.getName());
+                    });
+
+                    // Process the replay file once (no retries for local app)
+                    processor.process(replayFile);
+
+                    // Update UI to show success status
+                    filesProcessedCount++;
+                    SwingUtilities.invokeLater(() -> {
+                        ui.updateReplayStatusInList("✅ " + replayFile.getName());
+                    });
+
+                } catch (InterruptedException e) {
+                    ProcessingLogger.error("Processing interrupted: " + replayFile.getName());
+                    if (shutdownRequested.get()) {
+                        SwingUtilities.invokeLater(() -> {
+                            ui.updateReplayStatusInList("⏹️ " + replayFile.getName());
+                        });
+                        break;
+                    }
+                    filesFailedCount++;
+                    SwingUtilities.invokeLater(() -> {
+                        ui.updateReplayStatusInList("❌ " + replayFile.getName());
+                    });
+
+                } catch (Exception e) {
+                    ProcessingLogger.error("Error processing: " + replayFile.getName() + " - " + e.getMessage(), e);
+                    filesFailedCount++;
+                    SwingUtilities.invokeLater(() -> {
+                        ui.updateReplayStatusInList("❌ " + replayFile.getName());
+                    });
+                }
+
+                // Update progress
+                SwingUtilities.invokeLater(() -> {
+                    updateProgressDisplay(ui, totalFiles);
+                });
             }
-        }).start();
+        } finally {
+            // Ensure graceful shutdown of processor
+            processor.requestShutdown();
+
+            // Finalize processing on the UI thread
+            SwingUtilities.invokeLater(() -> {
+                logFinalProcessingResult(this, startTime);
+                ui.setButtonProcessToInitialState();
+
+                if (!processingCancelled.get() && ui.isOpenOutputFolderSelected()) {
+                    openOutputDirectory();
+                }
+            });
+        }
+    }
+
+    private void updateProgressDisplay(ReliveTrackMergerUI ui, int totalFiles) {
+        int filesRemaining = totalFiles - filesProcessedCount - filesFailedCount;
+        long elapsedTimeMs = System.currentTimeMillis() - processingStartTime;
+        long estimatedTotalTimeMs = (filesProcessedCount > 0) ? (elapsedTimeMs * totalFiles) / (filesProcessedCount) : -1;
+        long estimatedRemainingMs = (estimatedTotalTimeMs > 0) ? estimatedTotalTimeMs - elapsedTimeMs : -1;
+        long estimatedRemainingMin = (estimatedRemainingMs > 0) ? estimatedRemainingMs / 60000 : -1;
+
+        ProcessingLogger.debug("Progress: " + filesProcessedCount + " completed, " + filesFailedCount + " failed, " + filesRemaining + " remaining, ETA: " +
+                (estimatedRemainingMin > 0 ? estimatedRemainingMin + " min" : "calculating..."));
     }
 
     private static void logFinalProcessingResult(ReliveTrackMergerController controller, long startTime) {
         if (controller.isProcessingCancelled()) {
-            System.out.println("Replay processing stopped");
+            ProcessingLogger.info("Replay processing stopped by user");
         } else {
-            System.out.println();
-            System.out.println("Done!");
-            System.out.println("Processing took a total of " + (System.currentTimeMillis() - startTime) / 1000.0 + " seconds");
+            ProcessingLogger.info("");
+            ProcessingLogger.info("Done!");
+            ProcessingLogger.info("Files processed: " + controller.filesProcessedCount);
+            ProcessingLogger.info("Files failed: " + controller.filesFailedCount);
+            ProcessingLogger.info("Processing took a total of " + String.format("%.1f", (System.currentTimeMillis() - startTime) / 1000.0) + " seconds");
         }
     }
 
     private void displayFileSizeInfo() {
         if (inputFolder != null && outputFolder != null && filesToProcess != null && !filesToProcess.isEmpty()) {
-            System.out.println("Total file size of selected replays: " + String.format("%.1f", getTotalSizeOfSelectedReplays()) + " GB");
-            System.out.println("Available storage on disk: " + String.format("%.1f", getAvailableDiskSpaceOfOutputDirectory()) + " GB");
+            ProcessingLogger.info("Total file size of selected replays: " + String.format("%.1f", getTotalSizeOfSelectedReplays()) + " GB");
+            ProcessingLogger.info("Available storage on disk: " + String.format("%.1f", getAvailableDiskSpaceOfOutputDirectory()) + " GB");
         }
     }
 
     private void printAmountOfFilesToProcess() {
-        System.out.println("Processing " + filesToProcess.size() + " file(s)");
+        ProcessingLogger.info("Processing " + filesToProcess.size() + " file(s)");
     }
 
     private void printOutputFolderPath() {
-        System.out.println("Output folder is: " + outputFolder.getAbsolutePath());
+        ProcessingLogger.info("Output folder is: " + outputFolder.getAbsolutePath());
     }
 
     private void printSeparator() {
-        System.out.println();
-        System.out.println("-----------------------------------------------------------------------------");
-        System.out.println();
+        ProcessingLogger.info("");
+        ProcessingLogger.info("-----------------------------------------------------------------------------");
+        ProcessingLogger.info("");
     }
 
     public boolean isProcessingCancelled() {
