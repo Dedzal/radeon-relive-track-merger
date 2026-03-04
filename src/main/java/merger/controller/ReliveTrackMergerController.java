@@ -25,7 +25,6 @@ public class ReliveTrackMergerController {
 
     private volatile AtomicBoolean processingCancelled = new AtomicBoolean(false);
     private volatile AtomicBoolean shutdownRequested = new AtomicBoolean(false);
-    private volatile AtomicBoolean pauseRequested = new AtomicBoolean(false);
     private Thread processingThread;
     private ProcessingConfig processingConfig;
     private long processingStartTime = 0;
@@ -36,8 +35,13 @@ public class ReliveTrackMergerController {
         ui.cleanLogTextarea();
 
         if (selectedInputFolder == null) {
+            // User canceled - reset everything
             inputFolder = null;
+            outputFolder = null;
+            filesToProcess = null;
             ui.cleanTextFieldInputFolderPath();
+            ui.cleanTextFieldOutputFolderPath();
+            ui.clearVideoList();
             ui.disableButtonProcess();
         } else {
             inputFolder = selectedInputFolder;
@@ -122,7 +126,6 @@ public class ReliveTrackMergerController {
     public void executeReplayProcessing(ReliveTrackMergerUI ui) {
         processingCancelled.set(false);
         shutdownRequested.set(false);
-        pauseRequested.set(false);
         filesProcessedCount = 0;
         filesFailedCount = 0;
 
@@ -214,7 +217,6 @@ public class ReliveTrackMergerController {
         if (processingConfig != null && processingThread != null && processingThread.isAlive()) {
             ProcessingLogger.info("Pausing replay processing...");
             processingConfig.requestPause();
-            pauseRequested.set(true);
         }
     }
 
@@ -222,12 +224,7 @@ public class ReliveTrackMergerController {
         if (processingConfig != null && processingThread != null && processingThread.isAlive()) {
             ProcessingLogger.info("Resuming replay processing...");
             processingConfig.resume();
-            pauseRequested.set(false);
         }
-    }
-
-    public boolean isPauseRequested() {
-        return pauseRequested.get();
     }
 
     private void processReplaysSequentially(ReplayProcessor processor, ReliveTrackMergerUI ui, long startTime) {
@@ -313,14 +310,7 @@ public class ReliveTrackMergerController {
     }
 
     private void updateProgressDisplay(ReliveTrackMergerUI ui, int totalFiles) {
-        int filesRemaining = totalFiles - filesProcessedCount - filesFailedCount;
-        long elapsedTimeMs = System.currentTimeMillis() - processingStartTime;
-        long estimatedTotalTimeMs = (filesProcessedCount > 0) ? (elapsedTimeMs * totalFiles) / (filesProcessedCount) : -1;
-        long estimatedRemainingMs = (estimatedTotalTimeMs > 0) ? estimatedTotalTimeMs - elapsedTimeMs : -1;
-        long estimatedRemainingMin = (estimatedRemainingMs > 0) ? estimatedRemainingMs / 60000 : -1;
-
-        ProcessingLogger.debug("Progress: " + filesProcessedCount + " completed, " + filesFailedCount + " failed, " + filesRemaining + " remaining, ETA: " +
-                (estimatedRemainingMin > 0 ? estimatedRemainingMin + " min" : "calculating..."));
+        // Silent progress update - no debug logging needed for local app
     }
 
     private static void logFinalProcessingResult(ReliveTrackMergerController controller, long startTime) {
@@ -387,31 +377,23 @@ public class ReliveTrackMergerController {
         if (outputFolder != null && outputFolder.exists()) {
             openFile(outputFolder);
         } else {
-            System.err.println("Output folder does not exist or is not set.");
-        }
-    }
-
-    public void openReplay(String replayName) {
-        if (replayName != null && !filesToProcess.isEmpty()) {
-            filesToProcess.stream()
-                    .filter(replay -> replay.getName().equals(replayName))
-                    .findFirst().ifPresent(this::openFile);
+            ProcessingLogger.error("Output folder does not exist or is not set.");
         }
     }
 
     private void openFile(File file) {
         if (file == null || !file.exists()) {
-            System.err.println("File does not exist or is null: " + file);
+            ProcessingLogger.error("File does not exist or is null: " + file);
             return;
         }
         try {
             if (!Desktop.isDesktopSupported()) {
-                System.err.println("Desktop API is not supported on this system.");
+                ProcessingLogger.error("Desktop API is not supported on this system.");
                 return;
             }
             Desktop.getDesktop().open(file);
         } catch (Exception e) {
-            System.err.println("Failed to open file: " + e.getMessage());
+            ProcessingLogger.error("Failed to open file: " + e.getMessage(), e);
         }
     }
 }

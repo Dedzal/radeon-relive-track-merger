@@ -8,8 +8,6 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
 import java.io.File;
 import java.io.OutputStream;
 import java.io.PrintStream;
@@ -324,6 +322,10 @@ public class ReliveTrackMergerUI extends JFrame {
         textFieldInputFolderPath.setText("");
     }
 
+    public void cleanTextFieldOutputFolderPath() {
+        textFieldOutputFolderPath.setText("");
+    }
+
     public void setTextFieldInputFolderPath(String textFieldInputFolderPath) {
         this.textFieldInputFolderPath.setText(textFieldInputFolderPath);
     }
@@ -377,18 +379,6 @@ public class ReliveTrackMergerUI extends JFrame {
         listVideoModel = new DefaultListModel<>();
         listVideoView = new JList<>(listVideoModel);
         listVideoView.setFocusable(false);
-        listVideoView.addMouseListener(new MouseAdapter() {
-            public void mouseClicked(MouseEvent e) {
-                JList<String> list = (JList) e.getSource();
-                if (e.getClickCount() == 2) {
-                    int i = list.locationToIndex(e.getPoint());
-                    if (i != -1) {
-                        String replayName = listVideoView.getModel().getElementAt(i);
-                        controller.openReplay(replayName);
-                    }
-                }
-            }
-        });
 
         return new JScrollPane(listVideoView);
     }
