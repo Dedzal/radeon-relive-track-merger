@@ -1,65 +1,76 @@
 # Relive Track Merger
 
-The `Relive Track Merger` is a tool designed to **embed microphone tracks into Radeon Relive replays**.
-By automating this process, it eliminates the hassle of managing separate media files during video editing,
-especially when handling large collections of replays. The application uses `FFmpeg` as a CLI tool to add the microphone track to the replay.
+Relive Track Merger embeds microphone (.m4a) tracks into Radeon Relive replay (.mp4) files using FFmpeg.
+It automates merging many replays, keeping folder structure intact and giving you the option to either
+preserve originals or overwrite them.
 
-The tool offers two ways of processing: 
+## Why use this tool
 
-1. **Saving processed replays to a separate output folder** (`replays_merged`), preserving the original replays
-2. **Replacing the original replays** with processed ones directly in their current location
+- Saves time when preparing many replays for editing.
+- Keeps processed replays organized by game (output mirrors input structure).
+- Lets you choose between preserving originals or replacing them in-place.
 
-Choosing to process the replays to a separate output folder is highly recommended to
-ensure the original replays remain intact and are not replaced by potentially corrupt files.
-
+## Screenshots
 
 ![](docs/img1.png)
 
 ![](docs/img2.png)
--
+
 ![](docs/img3.png)
+
+## Quick summary
+
+- **Replays**: .mp4 files with `_replay_` in the filename.
+- **Microphone tracks**: .m4a files with the same basename as their replay, located in the same folder.
+- Already processed files end with `_merged` and are skipped automatically.
+
+## Default behavior
+
+- When you select an input folder, the default output folder becomes `INPUT_FOLDER/replays_merged`.
+- If you enable "Replace originals" the output folder is the input folder itself and the output selection is disabled.
+- If you select a custom output folder, the app will use `SELECTED_FOLDER/replays_merged` unless you are replacing originals.
+
+## Examples
+
+- Input: `C:\Radeon Relive\ArmA 3`, Replace originals: OFF → Output: `C:\Radeon Relive\ArmA 3\replays_merged`
+- Input: `C:\Radeon Relive\ArmA 3`, Replace originals: ON → Output: `C:\Radeon Relive\ArmA 3`
+- Selected output `C:\Processed` (Replace originals OFF) → Output: `C:\Processed\replays_merged`
+- If you choose a folder already named `replays_merged`, the app will not append another `replays_merged` segment.
 
 ## Prerequisites
 
-- **Java**:  
-  Required to launch the .jar file. You can download Java [here](https://www.java.com/download/ie_manual.jsp). <br>
-  To check if Java is installed, open cmd and run:
-    ```bash
-      java -version
-    ```
+- **Java** (to run the jar). Check with:
 
-- **FFmpeg**:  
-  FFmpeg handles the core task of adding the microphone track to the replay. If not installed, the app can automatically install it using
-  the [Windows Package Manager (winget)](https://learn.microsoft.com/en-us/windows/package-manager/winget).
-  Alternatively, you can manually install FFmpeg from its [official website](https://ffmpeg.org/download.html). <br>
-  To verify ffmpeg is installed, run:
-    ```bash
-      ffmpeg -version
-    ```
-## How It Works
+  ```powershell
+  java -version
+  ```
 
-1. **Select Input Folder** <br>
-   Choose the directory where your replays are stored. You can select a specific game folder (e.g.,
-   `Radeon Relive\ArmA 3`) or the entire `Radeon Relive` directory to process all replays.
+- **FFmpeg**. The app will attempt to install FFmpeg on Windows via `winget` if it is not installed. Alternatively, install it manually:
 
-2. **Select Output Folder** <br>
-   Define where the processed replays will be saved. By default, the output directory is set to
-   `INPUT_FOLDER\replays_merged`. The directory structure of the output folder will remain identical to the input folder, meaning that your processed replays will be separated by game.
-   If you prefer to overwrite the original files, the output folder option will be disabled.
+  ```powershell
+  ffmpeg -version
+  ```
 
-3. **Process Files** <br>
-   Click the `Process` button to start embedding microphone tracks into corresponding replays. Files without a matching
-   microphone track will either be copied or left untouched based on your settings.
+## Usage
 
-**File Identification**:
+1. Start the app (run the JAR or use the launcher).
+2. Click "Select Input Folder" and choose your replay root or a specific game folder.
+3. Optionally, click "Select Output Folder" (disabled if "Replace originals" is selected).
+4. Toggle "Replace originals" if you prefer to overwrite original replay files.
+5. Optionally, toggle "Clean output folder" to remove previously processed files before running.
+6. Click "Process". Progress and status messages appear in the log area.
 
-- **Replays**: `.mp4` files with `_replay_` in their filename.
-- **Microphone Tracks**: `.m4a` files with the same name as their corresponding replay, located in the same directory.
-- **Already Processed Files**: Files ending with `_merged` are excluded automatically from the processing.
+## Processing details and safety notes
 
-# Disclaimer
+- The app uses FFmpeg to combine streams. When replacing originals, temporary files are created and then moved into place — this reduces but does not eliminate the risk of corruption. Back up important files before use.
+- Files without a matching microphone track are either copied to the output or left untouched depending on the "Replace originals" setting.
+- If you pick an output directory that does not exist, the app will create the necessary folders.
 
-This application was developed as a personal project and is provided "as is".
-While it has been tested, there is a risk of unexpected issues or file corruption.
-Please use it at your own discretion and back up your files before using the app.
-Contributions and suggestions for improvements are welcome!
+## Troubleshooting
+
+- If processing fails due to insufficient free space, try freeing disk space or selecting a different output drive.
+- If FFmpeg is missing and automatic installation fails, install FFmpeg manually and ensure it is on your PATH.
+
+## License & disclaimer
+
+This is a personal project provided "as is". Use at your own risk and back up your data before running bulk operations. Contributions and suggestions are welcome.
