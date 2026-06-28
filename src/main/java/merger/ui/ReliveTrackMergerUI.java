@@ -13,6 +13,7 @@ import java.awt.event.ActionListener;
 import java.io.File;
 import java.io.OutputStream;
 import java.io.PrintStream;
+import java.util.List;
 
 import static merger.ui.UIConstants.*;
 
@@ -30,9 +31,7 @@ public class ReliveTrackMergerUI extends JFrame {
     private JCheckBox checkboxReplaceOriginalVideoInsteadOfCopying;
     private JCheckBox checkboxDeleteMicrophoneTracksAfterCopying;
     private JSeparator checkboxSeparator;
-    private JList<String> listVideoView;
-    private DefaultListModel<String> listVideoModel;
-    private JScrollPane scrollpaneVideoList;
+    private ReplayChecklist replayChecklist;
     private JTextArea textareaLog;
     private JScrollPane scrollpaneLog;
 
@@ -174,13 +173,14 @@ public class ReliveTrackMergerUI extends JFrame {
         constraints.anchor = GridBagConstraints.WEST;
         contentPane.add(checkboxDeleteMicrophoneTracksAfterCopying, constraints);
 
-        scrollpaneVideoList = createVideoListScrollPane();
+        replayChecklist = new ReplayChecklist();
+        replayChecklist.setSelectionListener(() -> controller.onReplaySelectionChanged(this));
         constraints.gridx = 0;
         constraints.gridy = 7;
         constraints.gridwidth = 2;
         constraints.fill = GridBagConstraints.BOTH;
         constraints.weighty = 1.0;
-        contentPane.add(scrollpaneVideoList, constraints);
+        contentPane.add(replayChecklist, constraints);
 
         scrollpaneLog = createLogScrollPane();
         constraints.gridx = 0;
@@ -301,6 +301,7 @@ public class ReliveTrackMergerUI extends JFrame {
         buttonPauseResume.setEnabled(false);
         buttonPauseResume.setText("Pause");
         processingPaused = false;
+        replayChecklist.setInteractionEnabled(true);
         clearActionListenersAndSetNewAction(buttonProcess, startProcessingAction());
     }
 
@@ -314,6 +315,7 @@ public class ReliveTrackMergerUI extends JFrame {
     public void setButtonProcessToCancelState() {
         buttonProcess.setText(BUTTON_CANCEL_LABEL);
         buttonPauseResume.setEnabled(true);
+        replayChecklist.setInteractionEnabled(false);
         clearActionListenersAndSetNewAction(buttonProcess, cancelProcessingAction());
     }
 
@@ -358,36 +360,26 @@ public class ReliveTrackMergerUI extends JFrame {
     }
 
     public void clearVideoList() {
-        listVideoModel.clear();
+        replayChecklist.clear();
     }
 
     public void addToVideoList(String replayName) {
-        listVideoModel.addElement(replayName);
+        replayChecklist.addReplay(replayName);
     }
 
-    public void repaintVideoList() {
-        listVideoView.repaint();
+    /** Returns the names of the replays the user has checked for processing. */
+    public List<String> getSelectedReplayNames() {
+        return replayChecklist.getSelectedReplayNames();
     }
 
-    public void updateReplayStatusInList(String updatedStatus) {
-        SwingUtilities.invokeLater(() -> {
-            String videoName = updatedStatus.substring(2); // Assume status is a single character followed by a space
-            for (int i = 0; i < listVideoModel.getSize(); i++) {
-                String currentName = listVideoModel.getElementAt(i);
-                if (currentName.trim().endsWith(videoName)) {
-                    listVideoModel.set(i, updatedStatus);
-                    break;
-                }
-            }
-        });
+    /** Clears any per-replay status labels before a new processing run begins. */
+    public void clearReplayStatuses() {
+        replayChecklist.clearStatuses();
     }
 
-    private JScrollPane createVideoListScrollPane() {
-        listVideoModel = new DefaultListModel<>();
-        listVideoView = new JList<>(listVideoModel);
-        listVideoView.setFocusable(false);
-
-        return new JScrollPane(listVideoView);
+    /** Updates the status label (e.g. a progress emoji) shown next to a replay. */
+    public void setReplayStatus(String replayName, String status) {
+        SwingUtilities.invokeLater(() -> replayChecklist.setReplayStatus(replayName, status));
     }
 
     private JButton createProcessButton() {

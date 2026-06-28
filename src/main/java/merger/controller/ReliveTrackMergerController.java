@@ -11,7 +11,7 @@ import merger.util.ReplayUtils;
 import javax.swing.*;
 import java.awt.*;
 import java.io.File;
-import java.util.Comparator;
+import java.util.*;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
@@ -47,8 +47,11 @@ public class ReliveTrackMergerController {
     // originals) or to a child folder (input/replays_merged) or a folder chosen by the user.
     private File outputFolder;
 
-    // Cached list of files to process (discovered under inputFolder)
-    private List<File> filesToProcess;
+    // Cached list of all replays discovered under inputFolder (the full set shown in the UI).
+    private List<File> discoveredReplays;
+
+    // Snapshot of the replays the user actually chose to process, captured when processing starts.
+    private List<File> replaysToProcess;
 
     // Flags used for graceful shutdown and cancellation
     // AtomicBoolean is used to safely share these flags across the UI thread and the background processing thread.
@@ -86,7 +89,7 @@ public class ReliveTrackMergerController {
             // User canceled - reset everything (safe no-op if already null)
             inputFolder = null;
             outputFolder = null;
-            filesToProcess = null;
+            discoveredReplays = null;
             ui.cleanTextFieldInputFolderPath();
             ui.cleanTextFieldOutputFolderPath();
             ui.clearVideoList();
@@ -150,37 +153,67 @@ public class ReliveTrackMergerController {
     }
 
     /**
-     * Discover and present unprocessed replay files in the UI list. This method
-     * keeps the UI listing in sync with the controller's `filesToProcess` cache.
+     * Discover the unprocessed replays under the input folder and present them as a
+     * checkbox list in the UI (every replay starts selected). Keeps the UI listing in
+     * sync with the controller's {@code discoveredReplays} cache.
      */
     private void updateReplayListAndView(ReliveTrackMergerUI ui) {
         ui.clearVideoList();
         if (inputFolder != null && inputFolder.isDirectory()) {
             List<File> unprocessedReplays = ReplayUtils.getUnprocessedReplays(inputFolder);
-            filesToProcess = unprocessedReplays.stream()
+            discoveredReplays = unprocessedReplays.stream()
                     .sorted(Comparator.comparing(File::getName))
                     .collect(Collectors.toList());
 
-            for (File replay : filesToProcess) {
+            for (File replay : discoveredReplays) {
                 ui.addToVideoList(replay.getName());
             }
-
-            // Force a repaint so the UI list immediately reflects the new contents
-            ui.repaintVideoList();
         }
     }
 
     /**
-     * Enable/disable the "Process" button depending on whether we found any
-     * replay files to operate on.
+     * Called by the UI whenever the user checks/unchecks replays. Re-validates that there
+     * is at least one replay selected and that the selection still fits on the output disk.
+     */
+    public void onReplaySelectionChanged(ReliveTrackMergerUI ui) {
+        if (discoveredReplays == null || discoveredReplays.isEmpty()) {
+            return;
+        }
+        validateStorageSpaceAtOutputDisk(ui);
+        updateProcessButtonForSelection(ui);
+    }
+
+    /**
+     * Enable/disable the "Process" button depending on whether we found any replays at all,
+     * and whether the user currently has at least one of them selected.
      */
     private void validateReplaysToProcessFound(ReliveTrackMergerUI ui) {
-        if (filesToProcess == null || filesToProcess.isEmpty()) {
+        if (discoveredReplays == null || discoveredReplays.isEmpty()) {
             ProcessingLogger.info("No replays found in selected directory or any of its subdirectories");
+            ui.disableButtonProcess();
+        } else {
+            updateProcessButtonForSelection(ui);
+        }
+    }
+
+    /** Enables the "Process" button only while at least one replay is checked. */
+    private void updateProcessButtonForSelection(ReliveTrackMergerUI ui) {
+        if (ui.getSelectedReplayNames().isEmpty()) {
             ui.disableButtonProcess();
         } else {
             ui.enableButtonProcess();
         }
+    }
+
+    /** Returns the discovered replays the user has currently checked, preserving discovery order. */
+    private List<File> getSelectedReplays(ReliveTrackMergerUI ui) {
+        if (discoveredReplays == null) {
+            return new ArrayList<>();
+        }
+        Set<String> selectedNames = new HashSet<>(ui.getSelectedReplayNames());
+        return discoveredReplays.stream()
+                .filter(replay -> selectedNames.contains(replay.getName()))
+                .collect(Collectors.toList());
     }
 
     /**
@@ -191,7 +224,7 @@ public class ReliveTrackMergerController {
     private void validateEnoughStorageAvailableForProcessing(ReliveTrackMergerUI ui) {
         // Clear the log area — we show fresh messages for each selection change
         ui.cleanLogTextarea();
-        displayFileSizeInfo();
+        displayFileSizeInfo(ui);
         validateStorageSpaceAtOutputDisk(ui);
     }
 
@@ -212,6 +245,15 @@ public class ReliveTrackMergerController {
 
         long startTime = System.currentTimeMillis();
         ui.cleanLogTextarea();
+
+        // Snapshot the replays the user checked; everything below operates on this subset only.
+        replaysToProcess = getSelectedReplays(ui);
+        if (replaysToProcess.isEmpty()) {
+            ProcessingLogger.info("No replays selected — check at least one replay to process.");
+            ui.setButtonProcessToInitialState();
+            return;
+        }
+        ui.clearReplayStatuses();
 
         // Ensure FFmpeg is available before heavy work begins — it will throw
         // an IllegalStateException if installation/check fails.
@@ -275,8 +317,9 @@ public class ReliveTrackMergerController {
      * disable the Process button and inform the user.
      */
     private void validateStorageSpaceAtOutputDisk(ReliveTrackMergerUI ui) {
-        if (inputFolder != null && outputFolder != null && filesToProcess != null && !filesToProcess.isEmpty()) {
-            double totalSizeOfReplays = getTotalSizeOfSelectedReplays();
+        List<File> selectedReplays = getSelectedReplays(ui);
+        if (inputFolder != null && outputFolder != null && !selectedReplays.isEmpty()) {
+            double totalSizeOfReplays = getTotalSizeOfReplays(selectedReplays);
             double availableDiskSpace = getAvailableDiskSpaceOfOutputDirectory();
             if (totalSizeOfReplays >= availableDiskSpace) {
                 ProcessingLogger.info("The total file size of the selected replays (" + String.format("%.1f", totalSizeOfReplays) + " GB) exceeds the available disk space (" + String.format("%.1f", availableDiskSpace) + " GB).");
@@ -337,12 +380,8 @@ public class ReliveTrackMergerController {
      * separately so we can perform the correct UI update and bookkeeping.
      */
     private void processReplaysSequentially(ReplayProcessor processor, ReliveTrackMergerUI ui, long startTime) {
-        int totalFiles = filesToProcess.size();
-
         try {
-            for (int fileIndex = 0; fileIndex < filesToProcess.size(); fileIndex++) {
-                File replayFile = filesToProcess.get(fileIndex);
-
+            for (File replayFile : replaysToProcess) {
                 // Check for graceful shutdown request
                 if (shutdownRequested.get()) {
                     processor.requestShutdown();
@@ -362,40 +401,29 @@ public class ReliveTrackMergerController {
                 }
 
                 try {
-                    // Update UI to show processing status; updates must run on the EDT
-                    SwingUtilities.invokeLater(() -> {
-                        ui.updateReplayStatusInList("🔁 " + replayFile.getName());
-                    });
+                    ui.setReplayStatus(replayFile.getName(), "🔁");
 
                     // Process the replay file once (no retries) and update counters
                     processor.process(replayFile);
 
                     filesProcessedCount++;
-                    SwingUtilities.invokeLater(() -> {
-                        ui.updateReplayStatusInList("✅ " + replayFile.getName());
-                    });
+                    ui.setReplayStatus(replayFile.getName(), "✅");
 
                 } catch (InterruptedException e) {
                     // InterruptedException commonly signifies a requested shutdown — handle specially
                     ProcessingLogger.error("Processing interrupted: " + replayFile.getName());
                     if (shutdownRequested.get()) {
-                        SwingUtilities.invokeLater(() -> {
-                            ui.updateReplayStatusInList("⏹️ " + replayFile.getName());
-                        });
+                        ui.setReplayStatus(replayFile.getName(), "⏹️");
                         break;
                     }
                     filesFailedCount++;
-                    SwingUtilities.invokeLater(() -> {
-                        ui.updateReplayStatusInList("❌ " + replayFile.getName());
-                    });
+                    ui.setReplayStatus(replayFile.getName(), "❌");
 
                 } catch (Exception e) {
                     // Generic exception for a single file should not abort the whole run; we record it
                     ProcessingLogger.error("Error processing: " + replayFile.getName() + " - " + e.getMessage(), e);
                     filesFailedCount++;
-                    SwingUtilities.invokeLater(() -> {
-                        ui.updateReplayStatusInList("❌ " + replayFile.getName());
-                    });
+                    ui.setReplayStatus(replayFile.getName(), "❌");
                 }
 
             }
@@ -434,15 +462,16 @@ public class ReliveTrackMergerController {
      * the selected replays and the available size on disk (in GB) to help users
      * judge whether they need to free space or pick another output location.
      */
-    private void displayFileSizeInfo() {
-        if (inputFolder != null && outputFolder != null && filesToProcess != null && !filesToProcess.isEmpty()) {
-            ProcessingLogger.info("Total file size of selected replays: " + String.format("%.1f", getTotalSizeOfSelectedReplays()) + " GB");
+    private void displayFileSizeInfo(ReliveTrackMergerUI ui) {
+        List<File> selectedReplays = getSelectedReplays(ui);
+        if (inputFolder != null && outputFolder != null && !selectedReplays.isEmpty()) {
+            ProcessingLogger.info("Total file size of selected replays: " + String.format("%.1f", getTotalSizeOfReplays(selectedReplays)) + " GB");
             ProcessingLogger.info("Available storage on disk: " + String.format("%.1f", getAvailableDiskSpaceOfOutputDirectory()) + " GB");
         }
     }
 
     private void printAmountOfFilesToProcess() {
-        ProcessingLogger.info("Processing " + filesToProcess.size() + " file(s)");
+        ProcessingLogger.info("Processing " + replaysToProcess.size() + " file(s)");
     }
 
     private void printOutputFolderPath() {
@@ -482,11 +511,11 @@ public class ReliveTrackMergerController {
     }
 
     /**
-     * Compute the total size (in GB) of the selected replay files. This is used
+     * Compute the total size (in GB) of the given replay files. This is used
      * for a quick preflight disk-space check.
      */
-    private double getTotalSizeOfSelectedReplays() {
-        long totalSizeInBytes = filesToProcess.stream()
+    private static double getTotalSizeOfReplays(List<File> replays) {
+        long totalSizeInBytes = replays.stream()
                 .mapToLong(File::length) // Get file size in bytes
                 .sum();
         return totalSizeInBytes / (1024.0 * 1024.0 * 1024.0); // Convert bytes to gigabytes

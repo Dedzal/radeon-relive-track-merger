@@ -8,7 +8,38 @@ import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+/**
+ * Merges a Radeon ReLive replay video with its separately-recorded microphone track
+ * by remuxing them into a single MP4 using FFmpeg (stream copy, no re-encoding).
+ * <p>
+ * ReLive saves the gameplay capture (e.g. {@code foo_replay_01.mp4}) and the microphone
+ * audio (e.g. {@code foo_replay_01.m4a}) as two separate files. This class locates the
+ * matching microphone track for a replay and embeds it as an additional audio stream.
+ * <p>
+ * Two output modes are supported, controlled by {@code replaceSourceReplays}:
+ * <ul>
+ *     <li><b>Replace mode:</b> the merged file is written to a temporary file and then
+ *         atomically moved over the original replay. The microphone track is optionally
+ *         deleted afterwards.</li>
+ *     <li><b>Copy mode:</b> the merged file is written to {@code outputDirectory} (mirroring
+ *         any subdirectory structure of the input) with a {@code _merged} suffix, leaving
+ *         the source files untouched.</li>
+ * </ul>
+ * Replays without a matching microphone track are copied to the output folder (copy mode)
+ * or left in place (replace mode).
+ * <p>
+ * A single instance processes files sequentially on one background thread.
+ * {@link #requestShutdown()} may be called from another thread to abort processing and
+ * terminate the running FFmpeg process gracefully.
+ */
 public class ReplayProcessor {
+
+    private static final String MICROPHONE_TRACK_EXTENSION = ".m4a";
+    private static final String MERGED_REPLAY_SUFFIX = "_merged.mp4";
+    private static final String TEMP_REPLAY_SUFFIX = "_temp.mp4";
+
+    /** Multiplier applied to a replay's size to estimate peak disk usage (input + output coexist briefly). */
+    private static final int DISK_SPACE_SAFETY_MULTIPLIER = 2;
 
     private final File outputDirectory;
     private final File inputDirectory;
@@ -26,171 +57,179 @@ public class ReplayProcessor {
         this.processingConfig = processingConfig;
     }
 
+    /**
+     * Processes a single replay file: merges its microphone track if one exists, otherwise
+     * copies (copy mode) or leaves it untouched (replace mode).
+     *
+     * @param replayFile the replay video to process
+     * @throws InterruptedException if a shutdown was requested before or during processing
+     * @throws IOException          if disk space is insufficient, file operations fail, or FFmpeg fails
+     */
     public void process(File replayFile) throws IOException, InterruptedException {
-        // Check if shutdown was requested before starting
         if (shutdownRequested.get()) {
             throw new InterruptedException("Shutdown requested before processing file: " + replayFile.getName());
         }
 
-        // Check and wait if pause is requested
         processingConfig.checkAndWaitIfPaused();
-
-        // Validate available disk space before processing
         validateDiskSpaceBeforeProcessing(replayFile);
 
         String replayName = replayFile.getName();
         String replayNameWithoutExtension = getFileNameWithoutExtension(replayName);
-        File microphoneTrack = new File(replayFile.getParent(), replayNameWithoutExtension + ".m4a");
+        File microphoneTrack = new File(replayFile.getParent(), replayNameWithoutExtension + MICROPHONE_TRACK_EXTENSION);
         File outputFile = prepareOutputFile(replayFile, replayNameWithoutExtension);
 
         if (microphoneTrack.exists()) {
-            embedMicrophoneTrackToReplay(replayFile, replayName, microphoneTrack, outputFile);
+            mergeMicrophoneTrackIntoReplay(replayFile, microphoneTrack, outputFile);
         } else {
             handleReplayWithNoMicrophoneTrack(replayFile, replayName, outputFile);
         }
     }
 
+    /**
+     * Signals that processing should stop and terminates the running FFmpeg process, if any.
+     * Safe to call from a thread other than the one running {@link #process(File)}.
+     */
     public void requestShutdown() {
         shutdownRequested.set(true);
-        // Gracefully terminate the current FFmpeg process if running
-        if (currentProcess != null && currentProcess.isAlive()) {
+        Process process = currentProcess;
+        if (process != null && process.isAlive()) {
             ProcessingLogger.info("Terminating current FFmpeg process...");
-            currentProcess.destroy();
+            process.destroy();
         }
-    }
-
-    public boolean isShutdownRequested() {
-        return shutdownRequested.get();
-    }
-
-    private static String getFileNameWithoutExtension(String videoName) {
-        return videoName.substring(0, videoName.lastIndexOf('.'));
     }
 
     private void handleReplayWithNoMicrophoneTrack(File replayFile, String replayName, File outputFile) throws IOException {
-        if (!isReplaceSourceReplaysSelected()) {
+        if (replaceSourceReplays) {
+            ProcessingLogger.info("Replay does not contain a microphone track, nothing to do! - " + replayName);
+        } else {
             ProcessingLogger.info("Replay does not contain a microphone track, copying to output folder - " + replayName);
             Files.copy(replayFile.toPath(), outputFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
-        } else {
-            ProcessingLogger.info("Replay does not contain a microphone track, nothing to do! - " + replayName);
         }
     }
 
-    private void embedMicrophoneTrackToReplay(File replayFile, String replayName, File microphoneTrack, File outputFile) throws IOException, InterruptedException {
-        // Check if shutdown was requested before starting FFmpeg
+    private void mergeMicrophoneTrackIntoReplay(File replayFile, File microphoneTrack, File outputFile) throws IOException, InterruptedException {
         if (shutdownRequested.get()) {
-            throw new InterruptedException("Shutdown requested before processing: " + replayName);
+            throw new InterruptedException("Shutdown requested before processing: " + replayFile.getName());
         }
 
-        ProcessingLogger.info("Processing replay: " + replayName);
+        ProcessingLogger.info("Processing replay: " + replayFile.getName());
         long startTime = System.currentTimeMillis();
-        currentProcess = embedMicrophoneTrackToReplayAndSaveOutput(replayFile, microphoneTrack, outputFile);
 
+        int exitCode;
+        currentProcess = startFfmpegMerge(replayFile, microphoneTrack, outputFile);
         try {
-            // Wait for FFmpeg process to complete
-            currentProcess.waitFor();
+            exitCode = currentProcess.waitFor();
         } finally {
             currentProcess = null;
         }
 
-        // Check if shutdown was requested during processing
+        // A shutdown destroys the FFmpeg process (yielding a non-zero exit code); treat that as
+        // an interruption rather than a processing failure, and never touch the source files.
         if (shutdownRequested.get()) {
-            throw new InterruptedException("Shutdown requested during processing: " + replayName);
+            throw new InterruptedException("Shutdown requested during processing: " + replayFile.getName());
         }
 
+        // Guard against replacing a good source replay with a partial/corrupt output: only proceed
+        // once FFmpeg reports success.
+        if (exitCode != 0) {
+            throw new IOException("FFmpeg failed with exit code " + exitCode + " for replay: " + replayFile.getName());
+        }
 
-        if (isReplaceSourceReplaysSelected()) {
-            /*
-                Ffmpeg cannot change files in-place, that means we need to delete the old replay and rename it to
-                the original replay name.
-             */
+        if (replaceSourceReplays) {
+            // FFmpeg cannot edit a file in place, so it wrote to a temp file; move it over the original.
             replaceSourceReplayWithProcessedReplay(replayFile, outputFile);
             deleteMicrophoneTrackIfSelected(microphoneTrack);
         }
 
-        long processingTimeMs = System.currentTimeMillis() - startTime;
-        ProcessingLogger.info("Replay: " + replayFile.getName() + " processed in " + (processingTimeMs / 1000.0) + " seconds");
+        double processingTimeSeconds = (System.currentTimeMillis() - startTime) / 1000.0;
+        ProcessingLogger.info("Replay: " + replayFile.getName() + " processed in " + processingTimeSeconds + " seconds");
     }
 
     private void deleteMicrophoneTrackIfSelected(File microphoneTrack) {
-        if (isDeleteMicrophoneTracksSelected()) {
-            microphoneTrack.delete();
+        if (deleteMicrophoneTracks && !microphoneTrack.delete()) {
+            ProcessingLogger.warn("Failed to delete microphone track: " + microphoneTrack.getAbsolutePath());
         }
     }
 
-    private File prepareOutputFile(File videoFile, String videoNameWithoutExtension) {
+    /**
+     * Computes the output file for a replay and ensures its parent directory exists.
+     * <p>
+     * In replace mode the output is a temporary file alongside the source. In copy mode it is
+     * placed under {@code outputDirectory}, preserving any one-level subdirectory the replay
+     * came from (e.g. {@code input/game/replay.mp4} -> {@code output/game/replay_merged.mp4}).
+     */
+    private File prepareOutputFile(File replayFile, String replayNameWithoutExtension) throws IOException {
         String outputPath;
-        if (isReplaceSourceReplaysSelected()) {
-            outputPath = videoFile.getParent() + File.separator + videoNameWithoutExtension + "_temp.mp4";
+        if (replaceSourceReplays) {
+            outputPath = replayFile.getParent() + File.separator + replayNameWithoutExtension + TEMP_REPLAY_SUFFIX;
         } else {
             outputPath = outputDirectory.getAbsolutePath();
-            if (isFromSubdirectory(videoFile)) {
-                /*
-                    If the replay was located in a subdirectory (input_directory/game/replay),
-                    retain the same folder structure at the output location (output_directory/game/processed_replay)
-                 */
-                outputPath = outputPath + File.separator + videoFile.getParentFile().getName();
+            if (isFromSubdirectory(replayFile)) {
+                outputPath = outputPath + File.separator + replayFile.getParentFile().getName();
             }
-            outputPath = outputPath + File.separator + videoNameWithoutExtension + "_merged.mp4";
+            outputPath = outputPath + File.separator + replayNameWithoutExtension + MERGED_REPLAY_SUFFIX;
         }
 
         File outputFile = new File(outputPath);
-        outputFile.getParentFile().mkdirs(); // create the parent folder if it doesn't exist
+        File parentDirectory = outputFile.getParentFile();
+        if (parentDirectory != null && !parentDirectory.isDirectory() && !parentDirectory.mkdirs()) {
+            throw new IOException("Failed to create output directory: " + parentDirectory.getAbsolutePath());
+        }
         return outputFile;
     }
 
-    private static void replaceSourceReplayWithProcessedReplay(File unprocessedReplay, File processedReplay) {
-        String unprocessedReplayPath = unprocessedReplay.getAbsolutePath();
-        unprocessedReplay.delete(); // delete original replay
-        processedReplay.renameTo(new File(unprocessedReplayPath)); // rename new replay to the old replay
+    private static void replaceSourceReplayWithProcessedReplay(File originalReplay, File processedReplay) throws IOException {
+        // Files.move replaces the original in a single step, avoiding the data-loss window of a
+        // separate delete-then-rename (where a failed rename would leave no replay at all).
+        Files.move(processedReplay.toPath(), originalReplay.toPath(), StandardCopyOption.REPLACE_EXISTING);
     }
 
-    private static Process embedMicrophoneTrackToReplayAndSaveOutput(File videoFile, File microphoneTrack, File outputFile) throws IOException {
+    private static Process startFfmpegMerge(File replayFile, File microphoneTrack, File outputFile) throws IOException {
         return new ProcessBuilder(
                 "ffmpeg",
-                "-i", videoFile.getAbsolutePath(),          // input video file
+                "-i", replayFile.getAbsolutePath(),         // input replay video
                 "-i", microphoneTrack.getAbsolutePath(),    // input microphone track
-                "-nostdin", "-y",                            // auto-yes to overwrite inputs
-                "-map", "0",                                // map input video stream
-                "-map", "1",                                // map input microphone stream
-                "-c", "copy",                               // copy streams without re-encoding
-                outputFile.getAbsolutePath()                // save result to outputFile path
+                "-nostdin", "-y",                           // never read stdin; overwrite the output file if present
+                "-map", "0",                                // include all streams from the replay
+                "-map", "1",                                // include all streams from the microphone track
+                "-c", "copy",                               // remux only — no re-encoding
+                outputFile.getAbsolutePath()
         ).inheritIO().start();
     }
 
-    private boolean isReplaceSourceReplaysSelected() {
-        return replaceSourceReplays;
+    private boolean isFromSubdirectory(File replayFile) {
+        return !replayFile.getParentFile().getName().equals(inputDirectory.getName());
     }
 
-    private boolean isDeleteMicrophoneTracksSelected() {
-        return deleteMicrophoneTracks;
-    }
-
-    private boolean isFromSubdirectory(File videoFile) {
-        return !videoFile.getParentFile().getName().equals(inputDirectory.getName());
-    }
-
+    /**
+     * Verifies there is enough free space at the output location before processing, since merging
+     * briefly requires both the input and output files to exist at once.
+     */
     private void validateDiskSpaceBeforeProcessing(File replayFile) throws IOException {
         if (outputDirectory == null) {
             return;
         }
 
         long availableSpace = outputDirectory.getFreeSpace();
-        long requiredSpace = replayFile.length() * 2; // Need space for both input and output during processing
+        long requiredSpace = replayFile.length() * DISK_SPACE_SAFETY_MULTIPLIER;
         long minRequiredSpace = ProcessingConfig.MIN_FREE_SPACE_MB * 1024 * 1024;
 
         if (requiredSpace > availableSpace) {
-            String availableMB = String.format("%.1f", availableSpace / (1024.0 * 1024.0));
-            String requiredMB = String.format("%.1f", requiredSpace / (1024.0 * 1024.0));
-            throw new IOException("Insufficient disk space. Required: " + requiredMB + " MB, Available: " + availableMB + " MB");
+            throw new IOException("Insufficient disk space. Required: " + toMegabytes(requiredSpace)
+                    + " MB, Available: " + toMegabytes(availableSpace) + " MB");
         }
 
         if (availableSpace < minRequiredSpace) {
-            ProcessingLogger.warn("Low disk space: " + String.format("%.1f", availableSpace / (1024.0 * 1024.0)) + " MB remaining");
+            ProcessingLogger.warn("Low disk space: " + toMegabytes(availableSpace) + " MB remaining");
         }
     }
 
-    public ProcessingConfig getProcessingConfig() {
-        return processingConfig;
+    private static String toMegabytes(long bytes) {
+        return String.format("%.1f", bytes / (1024.0 * 1024.0));
+    }
+
+    private static String getFileNameWithoutExtension(String fileName) {
+        int lastDotIndex = fileName.lastIndexOf('.');
+        return lastDotIndex < 0 ? fileName : fileName.substring(0, lastDotIndex);
     }
 }
